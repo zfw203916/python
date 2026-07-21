@@ -1,0 +1,13 @@
+# 所有环境通用配置
+app:
+  name: "my-test-framework"
+  version: "0.1.0"
+
+http:
+  base_url: "https://api.example.com"  # 请求的基础URL
+  timeout: 30
+  retry_count: 3
+
+logging:
+  level: INFO
+  format: json

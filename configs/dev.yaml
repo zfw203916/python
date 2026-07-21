@@ -1,0 +1,10 @@
+# 开发环境覆盖
+database:
+  host: localhost
+  port: 5432
+  name: test_db
+  # 密码从环境变量读取: APP_DATABASE__PASSWORD
+  password: ""
+
+http:
+  timeout: 10
