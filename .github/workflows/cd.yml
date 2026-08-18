@@ -1,0 +1,64 @@
+name: CD - Deploy to Production
+
+on:
+  # 当 CI 测试通过并且有新的 release 发布时触发
+  release:
+    types: [published]
+  
+  # 也可以手动触发
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    # 示例1：部署到 PyPI
+    - name: Build and publish to PyPI
+      if: github.event_name == 'release'
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        pip install build twine
+        python -m build
+        twine upload dist/*
+    
+    # 示例2：部署到服务器 (SSH)
+    - name: Deploy to server
+      if: github.event_name == 'workflow_dispatch'
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_SSH_KEY }}
+        port: ${{ secrets.DEPLOY_PORT || 22 }}
+        script: |
+          cd /var/www/my-python-app
+          git pull origin main
+          pip install -r requirements.txt
+          systemctl restart my-python-app
+    
+    # 示例3：部署到 Docker
+    - name: Build and push Docker image
+      if: github.event_name == 'release'
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/my-python-app:latest
+          ${{ secrets.DOCKER_USERNAME }}/my-python-app:${{ github.event.release.tag_name }}
