@@ -1,0 +1,35 @@
+# 正常登录用例
+valid_users:
+- username: "admin"
+  password: "123456"
+  expected: "登录成功"
+- username: "zhangsan"
+  password: "password123"
+  expected: "登录成功"
+- username: "lisi"
+  password: "hello123"
+  expected: "登录成功"
+
+# 异常登录用例（预期失败）
+invalid_users:
+  - username: "admin"
+    password: "wrong"
+    expected: "用户名或密码错误"
+  - username: "unknown"
+    password: "123456"
+    expected: "用户不存在"
+  - username: ""
+    password: ""
+    expected: "用户名或密码错误"
+  - username: "admin"
+    password: ""
+    expected: "用户名或密码错误"
+
+# 边界值测试
+edge_cases:
+  - username: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # 超长用户名
+    password: "123456"
+    expected: "用户名或密码错误"
+  - username: "admin"
+    password: "pppppppppppppppppppppppppppppppppppppppppppppppppp"  # 超长密码
+    expected: "用户名或密码错误"

@@ -1,0 +1,31 @@
+[pytest]
+# 指定测试文件搜索目录
+testpaths = ["tests","tests"]
+
+# 默认命令行参数
+addopts=[
+   # ---- 你原有的配置 ----
+    "-rfEsxXp",           # 详细的测试结果汇总报告
+    "--new-first",        # 优先运行最近修改过的测试
+    "--no-header",        # 不显示版本、插件等头部信息
+    "--color=yes",        # 启用彩色输出
+
+    # ---- 🐛 调试与故障处理 ----
+    "--tb=short",         # 只显示简短的错误回溯信息 [citation:1][citation:3]
+    "-x",                 # 遇到第一个失败就立即停止测试 [citation:1][citation:4]
+    "--maxfail=5",        # 累计5个测试失败后停止测试 [citation:4][citation:5]
+    # "--lf",               # 仅重新运行上次失败的测试，便于快速修复 [citation:4][citation:5]
+    "--pdb",              # 测试失败时自动进入Python调试器 [citation:5]
+
+    # ---- 📊 性能分析 ----
+    "--durations=5",      # 显示运行最慢的5个测试 [citation:1][citation:2][citation:5]
+    "--durations-min=0.1", # 只统计耗时超过0.1秒的测试 [citation:2]
+
+    # ---- 📝 输出控制 ----
+    "-v",                 # 显示更详细的测试结果 [citation:1][citation:4][citation:6]
+    "-s",                 # 允许print输出，默认会捕获print [citation:4][citation:5]
+    "--show-capture=all", # 显示失败用例的stdout/stderr/log输出 [citation:5]
+
+    # ---- ⚙️ 其他实用选项 ----
+    "--strict-markers",   # 未注册的标记会导致错误，避免拼写错误 [citation:1][citation:3][citation:5]
+]

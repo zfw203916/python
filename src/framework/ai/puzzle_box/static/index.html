@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>汉字迷盒 - 汉字键盘</title>
+    <style>
+        /* ========== 全局重置 ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f0f2f5;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* ========== 主容器 ========== */
+        .app {
+            display: flex;
+            width: 1400px;
+            max-width: 100%;
+            height: 820px;
+            max-height: 95vh;
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+            overflow: hidden;
+        }
+
+        /* ========== 左侧边栏 - 游戏记录 ========== */
+        .sidebar {
+            width: 260px;
+            min-width: 260px;
+            background: #f7f8fc;
+            border-right: 1px solid #e8ecf1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 16px;
+        }
+
+        .sidebar-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a2e;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .sidebar-title .badge {
+            font-size: 11px;
+            background: #667eea;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .record-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .record-item {
+            padding: 12px 14px;
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .record-item:hover {
+            border-color: #667eea;
+            transform: translateX(4px);
+        }
+
+        .record-item .time {
+            font-size: 12px;
+            color: #999;
+            font-weight: 500;
+        }
+
+        .record-item .preview {
+            font-size: 14px;
+            color: #333;
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .record-item.active {
+            border-color: #667eea;
+            background: #eef2ff;
+        }
+
+        /* ========== 中间主区域 ========== */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        /* 头部 */
+        .header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #e8ecf1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-left .title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .header-left .status {
+            font-size: 13px;
+            color: #00b894;
+            background: #e6f9f4;
+            padding: 2px 14px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-right .session-id {
+            font-size: 12px;
+            color: #999;
+            background: #f0f2f5;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-family: "Courier New", monospace;
+        }
+
+        /* ========== 消息列表 ========== */
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #fafbfc;
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            max-width: 80%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            background: #eef2ff;
+        }
+
+        .message.user .avatar {
+            background: #667eea;
+            color: white;
+        }
+
+        .message .bubble {
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.6;
+            word-break: break-word;
+            background: white;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .message.user .bubble {
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant .bubble {
+            background: white;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message .time-tag {
+            font-size: 11px;
+            color: #bbb;
+            margin-top: 4px;
+            display: block;
+        }
+
+        .message.user .time-tag {
+            text-align: right;
+        }
+
+        /* ========== 底部输入区 ========== */
+        .input-area {
+            padding: 16px 24px;
+            border-top: 1px solid #e8ecf1;
+            background: white;
+            flex-shrink: 0;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-area .input-wrapper {
+            flex: 1;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .input-area textarea {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e8ecf1;
+            border-radius: 14px;
+            font-size: 15px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            transition: border-color 0.3s ease;
+            min-height: 48px;
+            max-height: 120px;
+            line-height: 1.5;
+        }
+
+        .input-area textarea:focus {
+            border-color: #667eea;
+        }
+
+        .input-area textarea:disabled {
+            background: #f5f6fa;
+            cursor: not-allowed;
+        }
+
+        .input-area .btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 48px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.35);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-success {
+            background: #00b894;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #00a381;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 184, 148, 0.35);
+        }
+
+        .btn-success:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #e55a5a;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.35);
+        }
+
+        /* ========== 右侧面板 - 游戏简介 ========== */
+        .right-panel {
+            width: 240px;
+            min-width: 240px;
+            background: #fafbfc;
+            border-left: 1px solid #e8ecf1;
+            padding: 20px 16px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1a1a2e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e0e4ed;
+        }
+
+        .panel-section {
+            margin-bottom: 20px;
+        }
+
+        .panel-section .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 6px;
+        }
+
+        .panel-section .section-desc {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.7;
+        }
+
+        .panel-tag {
+            display: inline-block;
+            background: #eef2ff;
+            color: #667eea;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            margin: 3px 4px 3px 0;
+        }
+
+        .panel-divider {
+            border: none;
+            border-top: 1px solid #e8ecf1;
+            margin: 12px 0;
+        }
+
+        /* ========== 滚动条 ========== */
+        .messages::-webkit-scrollbar,
+        .record-list::-webkit-scrollbar,
+        .right-panel::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .messages::-webkit-scrollbar-track,
+        .record-list::-webkit-scrollbar-track,
+        .right-panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .messages::-webkit-scrollbar-thumb,
+        .record-list::-webkit-scrollbar-thumb,
+        .right-panel::-webkit-scrollbar-thumb {
+            background: #d0d5e0;
+            border-radius: 4px;
+        }
+
+        /* ========== 响应式 ========== */
+        @media (max-width: 1024px) {
+            .right-panel {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+
+            .app {
+                height: 100vh;
+                max-height: 100vh;
+                border-radius: 0;
+                padding: 0;
+            }
+
+            .header {
+                padding: 12px 16px;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .messages {
+                padding: 12px 16px;
+            }
+
+            .input-area {
+                padding: 12px 16px;
+                flex-wrap: wrap;
+            }
+
+            .input-area .input-wrapper {
+                flex-wrap: wrap;
+            }
+
+            .input-area textarea {
+                min-height: 40px;
+                font-size: 14px;
+            }
+
+            .input-area .btn {
+                padding: 10px 18px;
+                font-size: 14px;
+                height: 44px;
+            }
+
+            .message {
+                max-width: 95%;
+            }
+
+            .header-right .session-id {
+                font-size: 10px;
+                padding: 2px 8px;
+            }
+        }
+
+        /* ========== 加载动画 ========== */
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.2s steps(4, jump-none) infinite;
+        }
+
+        @keyframes dots {
+            0% {
+                content: '';
+            }
+            25% {
+                content: '.';
+            }
+            50% {
+                content: '..';
+            }
+            75% {
+                content: '...';
+            }
+            100% {
+                content: '';
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app">
+
+        <!-- ============================================================ -->
+        <!-- 左侧：游戏记录 -->
+        <!-- ============================================================ -->
+        <div class="sidebar">
+            <div class="sidebar-title">
+                📜 游戏记录
+                <span class="badge" id="recordCount">0</span>
+            </div>
+            <div class="record-list" id="recordList">
+                <!-- 动态渲染 -->
+                <div style="text-align:center;color:#bbb;font-size:13px;padding:40px 0;">
+                    暂无记录<br>
+                    <span style="font-size:12px;">开始你的第一次探索吧</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 中间：主区域 -->
+        <!-- ============================================================ -->
+        <div class="main">
+
+            <!-- 头部 -->
+            <div class="header">
+                <div class="header-left">
+                    <span class="title">🤖 AI对话</span>
+                    <span class="status" id="statusBadge">● 在线</span>
+                </div>
+                <div class="header-right">
+                    <span class="session-id" id="sessionDisplay">会话: 未创建</span>
+                </div>
+            </div>
+
+            <!-- 消息列表 -->
+            <div class="messages" id="messageList">
+                <!-- 欢迎消息 -->
+                <div class="message assistant">
+                    <div class="avatar">🤖</div>
+                    <div>
+                        <div class="bubble">
+                            你好！我是汉字AI助手 🎯<br>
+                            你可以输入文字，我会生成对应的汉字信息、拼音或笔画。<br>
+                            试试发送 <strong>"汉字"</strong> 或 <strong>"更新内容"</strong>
+                        </div>
+                        <span class="time-tag" id="welcomeTime"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部输入区 -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <textarea id="msgInput" placeholder="输入文字，AI实时响应…" rows="1" disabled></textarea>
+                    <button class="btn btn-success" id="sendBtn" disabled>
+                        ✉️ 发送
+                    </button>
+                </div>
+                <button class="btn btn-primary" id="newGameBtn">
+                    🎮 新建游戏
+                </button>
+            </div>
+
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 右侧：游戏简介 -->
+        <!-- ============================================================ -->
+        <div class="right-panel">
+            <div class="panel-title">📖 游戏简介</div>
+
+            <div class="panel-section">
+                <div class="section-title">🎯 汉字键盘</div>
+                <div class="section-desc">
+                    汉字键盘是一款基于人工智能的汉字输入法，专为汉字爱好者设计。
+                    在这里，你能够与AI机器人进行有趣的汉字挑战！
+                </div>
+            </div>
+
+            <hr class="panel-divider">
+
+            <div class="panel-section">
+                <div class="section-title">⚡ 核心玩法</div>
+                <div class="section-desc">
+                    AI会根据你输入的文字，自动生成汉字，并为你提供多种玩法。
+                    例如，你可以通过输入"汉字"来获得"汉字"的拼音，
+                    或者通过输入"汉字"来获得"汉字"的笔画数。
+                </div>
+            </div>
+
+            <hr class="panel-divider">
+
+            <div class="panel-section">
+                <div class="section-title">✨ 特色功能</div>
+                <div style="margin-top:4px;">
+                    <span class="panel-tag">智能纠错</span>
+                    <span class="panel-tag">无感输入</span>
+                    <span class="panel-tag">实时响应</span>
+                </div>
+                <div class="section-desc" style="margin-top:6px;font-size:12px;color:#888;">
+                    AI会根据你的输入自动纠错，无需记忆，只需说出即可完成输入。
+                </div>
+            </div>
+
+            <hr class="panel-divider">
+
+            <div class="panel-section">
+                <div class="section-title">👥 适合人群</div>
+                <div style="margin-top:4px;">
+                    <span class="panel-tag">汉字爱好者</span>
+                    <span class="panel-tag">文字爱好者</span>
+                    <span class="panel-tag">语言学习者</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- JavaScript -->
+    <!-- ============================================================ -->
+    <script>
+        // ============================================================
+        // 配置
+        // ============================================================
+        const API_BASE = 'http://127.0.0.1:8000';
+
+        // ============================================================
+        // DOM 引用
+        // ============================================================
+        const messageList = document.getElementById('messageList');
+        const msgInput = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const newGameBtn = document.getElementById('newGameBtn');
+        const sessionDisplay = document.getElementById('sessionDisplay');
+        const statusBadge = document.getElementById('statusBadge');
+        const recordList = document.getElementById('recordList');
+        const recordCount = document.getElementById('recordCount');
+
+        let currentSessionId = null;
+        let messageHistory = [];
+        let sessionRecords = [];
+
+        // ============================================================
+        // 工具函数
+        // ============================================================
+        function getTime() {
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        }
+
+        function getFullTime() {
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        }
+
+        function addMessage(role, content, extra = '') {
+            const isUser = role === 'user';
+            const avatar = isUser ? '👤' : '🤖';
+            const time = getTime();
+            const timeFull = getFullTime();
+
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+
+            div.innerHTML = `
+                <div class="avatar">${avatar}</div>
+                <div>
+                    <div class="bubble">${content}</div>
+                    <span class="time-tag">${timeFull}</span>
+                    ${extra ? `<span class="time-tag" style="color:#667eea;">${extra}</span>` : ''}
+                </div>
+            `;
+
+            messageList.appendChild(div);
+            messageList.scrollTop = messageList.scrollHeight;
+
+            // 保存历史
+            messageHistory.push({ role, content, time: timeFull });
+        }
+
+        function setStatus(text, type = 'online') {
+            const colors = {
+                online: '#00b894',
+                offline: '#ff6b6b',
+                loading: '#fdcb6e'
+            };
+            statusBadge.textContent = `● ${text}`;
+            statusBadge.style.color = colors[type] || '#00b894';
+        }
+
+        function updateSessionUI(sessionId) {
+            currentSessionId = sessionId;
+            if (sessionId) {
+                sessionDisplay.textContent = `会话: ${sessionId.slice(0, 12)}...`;
+                setStatus('在线', 'online');
+                msgInput.disabled = false;
+                sendBtn.disabled = false;
+                msgInput.focus();
+            } else {
+                sessionDisplay.textContent = '会话: 未创建';
+                setStatus('离线', 'offline');
+                msgInput.disabled = true;
+                sendBtn.disabled = true;
+            }
+        }
+
+        function updateRecords() {
+            // 从 session 目录读取已有记录（简化版，实际可通过 API 获取）
+            // 这里仅展示本地缓存
+            if (sessionRecords.length === 0) {
+                recordList.innerHTML = `
+                    <div style="text-align:center;color:#bbb;font-size:13px;padding:40px 0;">
+                        暂无记录<br>
+                        <span style="font-size:12px;">开始你的第一次探索吧</span>
+                    </div>
+                `;
+                recordCount.textContent = '0';
+                return;
+            }
+
+            recordList.innerHTML = sessionRecords.map((item, idx) => `
+                <div class="record-item ${idx === 0 ? 'active' : ''}">
+                    <div class="time">${item.time}</div>
+                    <div class="preview">${item.preview}</div>
+                </div>
+            `).join('');
+            recordCount.textContent = sessionRecords.length;
+        }
+
+        function addRecord(content) {
+            const time = getFullTime();
+            const preview = content.length > 30 ? content.slice(0, 30) + '…' : content;
+            sessionRecords.unshift({ time, preview, content });
+            updateRecords();
+        }
+
+        // ============================================================
+        // API 调用
+        // ============================================================
+
+        // 1. 创建会话
+        async function createSession() {
+            setStatus('连接中…', 'loading');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/session`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+
+                const data = await response.json();
+
+                if (data.code === 200) {
+                    updateSessionUI(data.data);
+                    addMessage('assistant', `✅ 新会话已创建！会话ID: <code>${data.data}</code><br>开始你的汉字探索吧 🚀`);
+                    // 添加记录
+                    addRecord(`创建会话: ${data.data}`);
+                    return data.data;
+                } else {
+                    addMessage('assistant', `❌ 创建会话失败: ${data.message}`);
+                    updateSessionUI(null);
+                    return null;
+                }
+            } catch (error) {
+                console.error('创建会话失败:', error);
+                addMessage('assistant', `❌ 网络错误: ${error.message}`);
+                updateSessionUI(null);
+                return null;
+            }
+        }
+
+        // 2. 发送消息
+        async function sendMessage() {
+            const text = msgInput.value.trim();
+            if (!text) return;
+
+            if (!currentSessionId) {
+                addMessage('assistant', '⚠️ 请先点击「新建游戏」创建会话');
+                return;
+            }
+
+            // 显示用户消息
+            addMessage('user', text);
+            addRecord(`用户: ${text}`);
+            msgInput.value = '';
+            msgInput.style.height = 'auto';
+            sendBtn.disabled = true;
+
+            // AI 思考占位
+            const thinkingId = Date.now();
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'message assistant';
+            thinkingDiv.id = `thinking-${thinkingId}`;
+            thinkingDiv.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div>
+                    <div class="bubble">思考中<span class="loading-dots"></span></div>
+                </div>
+            `;
+            messageList.appendChild(thinkingDiv);
+            messageList.scrollTop = messageList.scrollHeight;
+
+            try {
+                // TODO: 替换成你的真实接口
+                const response = await fetch(`${API_BASE}/api/explore`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: currentSessionId,
+                        text: text,
+                    }),
+                });
+
+                const data = await response.json();
+
+                // 移除思考占位
+                const thinkingEl = document.getElementById(`thinking-${thinkingId}`);
+                if (thinkingEl) thinkingEl.remove();
+
+                if (data.code === 200) {
+                    const reply = data.data?.result || data.data?.message || JSON.stringify(data.data);
+                    addMessage('assistant', reply);
+                    addRecord(`AI: ${reply.slice(0, 30)}…`);
+                } else {
+                    addMessage('assistant', `❌ ${data.message || '未知错误'}`);
+                }
+            } catch (error) {
+                const thinkingEl = document.getElementById(`thinking-${thinkingId}`);
+                if (thinkingEl) thinkingEl.remove();
+                console.error('发送消息失败:', error);
+                addMessage('assistant', `❌ 网络错误: ${error.message}`);
+            } finally {
+                sendBtn.disabled = false;
+                msgInput.focus();
+            }
+        }
+
+        // ============================================================
+        // 事件绑定
+        // ============================================================
+
+        // 新建游戏
+        newGameBtn.addEventListener('click', async () => {
+            newGameBtn.disabled = true;
+            newGameBtn.textContent = '⏳ 创建中…';
+            await createSession();
+            newGameBtn.textContent = '🎮 新建游戏';
+            newGameBtn.disabled = false;
+        });
+
+        // 发送消息
+        sendBtn.addEventListener('click', sendMessage);
+
+        // Ctrl+Enter / Cmd+Enter 发送
+        msgInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                sendMessage();
+            }
+            // Shift+Enter 换行，Enter 直接发送
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // 自动调整高度
+        msgInput.addEventListener('input', () => {
+            msgInput.style.height = 'auto';
+            msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+        });
+
+        // ============================================================
+        // 初始化
+        // ============================================================
+
+        // 设置欢迎时间
+        document.getElementById('welcomeTime').textContent = getFullTime();
+
+        // 加载完成后自动创建会话
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(async () => {
+                await createSession();
+                // 添加一条引导消息
+                addMessage('assistant', '💡 提示：发送 "汉字" 试试，或者输入任何你想探索的文字！');
+            }, 500);
+        });
+
+        console.log('📦 汉字迷盒已加载');
+        console.log('🔗 API: ', API_BASE);
+    </script>
+
+</body>
+</html>

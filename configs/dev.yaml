@@ -7,4 +7,46 @@ database:
   password: ""
 
 http:
+  timeout: 1# 开发环境覆盖
+# 说明这个文件专门用于开发环境
+# 会覆盖base.yaml中的同名配置
+
+database:
+# 数据库配置部分
+# 定义了数据库连接相关配置
+
+  host: localhost
+  # 数据库主机地址
+  # localhost表示本地机器
+  # 在开发环境中通常使用本地数据库
+
+  port: 5432
+  # 数据库端口号
+  # 5432是PostgreSQL的默认端口
+  # 其他数据库有不同默认端口（MySQL: 3306, MongoDB: 27017）
+
+  name: test_db
+  # 数据库名称
+  # 指定要连接的数据库名为test_db
+  # 开发环境使用测试数据库
+
+  # 密码从环境变量读取: APP_DATABASE__PASSWORD
+  # 注释说明密码的来源
+  # 建议不要将敏感信息硬编码在配置文件中
+  # 使用环境变量更安全
+  # 配置读取格式说明：APP_ + 配置路径（双下划线分隔）
+  # 例如：APP_DATABASE__PASSWORD 对应 database.password
+
+  password: ""
+  # 密码字段为空字符串
+  # 实际密码从环境变量获取
+  # 空值作为一个占位符
+
+http:
+# HTTP配置覆盖
+# 会覆盖base.yaml中的http配置
+
   timeout: 10
+  # 覆盖超时时间配置
+  # 从base.yaml的30秒改为10秒
+  # 开发环境可以设置更短的超时以便快速发现问题0

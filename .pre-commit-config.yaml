@@ -1,13 +1,47 @@
+#Git提交前自动检查
+#执行流程：
+#开发者执行 git commit
+#自动运行检查
+#发现问题则阻止提交
+#或自动修复问题
+#价值：
+#代码质量自动化
+#团队规范统一
+#减少Code Review负担
+
+
 repos:
+# 定义pre-commit钩子仓库列表，每个仓库包含一组钩子
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
+  # 指定使用ruff的pre-commit仓库地址，这个仓库包含ruff的git钩子
+
     rev: v0.5.0
+    # 指定使用ruff的版本为v0.5.0，确保所有开发者使用相同版本
+
     hooks:
+    # 定义该仓库中要使用的具体钩子列表
+
       - id: ruff
+      # 使用ruff钩子，用于代码检查和自动修复
+
         args: [--fix]
+      # 传递给ruff钩子的参数，--fix表示自动修复可修复的问题
+
       - id: ruff-format
+      # 使用ruff-format钩子，用于代码格式化（类似Black）
 
   - repo: https://github.com/pre-commit/mirrors-mypy
+  # 指定使用mypy的pre-commit仓库地址，这是一个镜像仓库
+
     rev: v1.11.0
+    # 指定使用mypy的版本为v1.11.0
+
     hooks:
+    # 定义该仓库中要使用的钩子
+
       - id: mypy
+      # 使用mypy钩子，用于静态类型检查
+
         additional_dependencies: [types-PyYAML]
+      # 额外依赖项，types-PyYAML是PyYAML的类型提示存根，确保mypy能正确检查YAML相关代码
