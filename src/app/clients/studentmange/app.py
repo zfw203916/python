@@ -743,8 +743,7 @@ def api_login():
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
 
-    if not username or not password:
-        return jsonify({"success": False, "message": "用户名或密码错误"})
+
     if not username and not password:
         return jsonify({"success": False, "message": "请输入用户名和密码"})
     if not username:

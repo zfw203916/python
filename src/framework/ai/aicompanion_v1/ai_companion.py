@@ -92,6 +92,7 @@ st.title("AI智能伴侣")
 
 api_key = os.environ.get("APP_DEEPSEEK_API_KEY")
 deepseek_url = os.environ.get("APP_DEEPSEEK_URL")
+deepseek_model = os.environ.get("APP_DEEPSEEK_MODEL")
 if api_key is None:
     st.error("APP_DEEPSEEK_API_KEY is not set")
     st.stop()
@@ -209,7 +210,7 @@ if prompt:
     #
     try:
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model= deepseek_model,
             messages=[
                 {"role": "system", "content": st.session_state.system_str},
                 *st.session_state.messages,

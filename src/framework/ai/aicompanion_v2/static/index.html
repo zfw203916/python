@@ -1,0 +1,75 @@
+<!-- my-test-framework/src/framework/ai/aicompanion_v2/static/index.html -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI智能伴侣</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>⚙️ AI伴侣设置</h2>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="form-group">
+                    <label>AI名称</label>
+                    <input type="text" id="aiName" value="小甜甜" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label>伴侣性格描述</label>
+                    <textarea id="aiPersonality" rows="3" class="form-textarea">活泼开朗的台湾姑娘</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>伴侣行为规则</label>
+                    <textarea id="aiRules" rows="6" class="form-textarea">1、每次只回1条消息.
+                        2、禁止任何场景或状态描述性文字.
+                        3、匹配用户的语言.
+                        4、回复简短，像微信聊天一样.
+                        5、有需要的话可以用🩷 💞等emoji表情.
+                        6、用符合伴侣性格的方式对话.
+                        7、回复的内容，要充分体现伴侣的性格特征.
+                        </textarea>
+                </div>
+                
+                <button id="updateSettings" class="btn btn-primary btn-block">🔄 更新设定</button>
+                
+                <hr>
+                
+                <button id="newSession" class="btn btn-success btn-block">🔄 新建会话</button>
+                
+                <div class="session-list">
+                    <h3>历史会话</h3>
+                    <div id="sessionList"></div>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- 主聊天区 -->
+        <main class="chat-main">
+            <header class="chat-header">
+                <h1>AI智能伴侣</h1>
+                <span id="currentSessionName">会话: 无</span>
+            </header>
+            
+            <div class="chat-messages" id="chatMessages">
+                <!-- 消息将在这里显示 -->
+            </div>
+            
+            <div class="chat-input-area">
+                <input type="text" id="messageInput" placeholder="请输入您的问题..." class="chat-input">
+                <button id="sendButton" class="btn btn-primary">发送</button>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

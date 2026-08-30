@@ -1,0 +1,45 @@
+# scenarios.yaml
+# 性能测试场景配置
+
+scenarios:
+  # 1. 冒烟测试 - 快速验证
+  smoke:
+    users: 10
+    spawn_rate: 5
+    run_time: 1m
+    description: 冒烟测试 - 快速验证系统基本功能
+    
+  # 2. 负载测试 - 正常负载
+  load:
+    users: 100
+    spawn_rate: 10
+    run_time: 5m
+    description: 负载测试 - 模拟正常业务负载
+    
+  # 3. 压力测试 - 系统极限
+  stress:
+    users: 500
+    spawn_rate: 50
+    run_time: 10m
+    description: 压力测试 - 测试系统极限
+    
+  # 4. 尖刺测试 - 突发流量
+  spike:
+    users: 1000
+    spawn_rate: 100
+    run_time: 5m
+    description: 尖刺测试 - 模拟突发流量
+    
+  # 5. 耐力测试 - 长时间运行
+  endurance:
+    users: 50
+    spawn_rate: 5
+    run_time: 30m
+    description: 耐力测试 - 长时间稳定性验证
+    
+  # 6. 浸泡测试 - 极限稳定性
+  soak:
+    users: 30
+    spawn_rate: 3
+    run_time: 60m
+    description: 浸泡测试 - 极限稳定性验证
