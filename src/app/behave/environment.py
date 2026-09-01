@@ -1,25 +1,22 @@
 # my-test-framework/src/app/behave/environment.py
 import os
 import sys
-import tempfile
 import shutil
 import subprocess
 import time
 import requests
-from behave import fixture, use_fixture
 
 # 添加app.py所在路径到系统路径
-APP_PATH = os.path.join(
-    os.path.dirname(__file__), 
-    '..', 'clients', 'studentmange'
-)
+APP_PATH = os.path.join(os.path.dirname(__file__), "..", "clients", "studentmange")
 sys.path.insert(0, APP_PATH)
 
 BASE_URL = "http://localhost:5003"
 DB_PATH = os.path.join(APP_PATH, "student_management.db")
 
+
 class TestContext:
     """测试上下文，用于在步骤之间共享数据"""
+
     def __init__(self):
         self.session = requests.Session()
         self.response = None
@@ -27,11 +24,12 @@ class TestContext:
         self.current_student = None
         self.logged_in = False
 
+
 # def before_all(context):
 #     """在所有测试开始前执行"""
 #     context.test_context = TestContext()
 #     context.app_process = None
-    
+
 #     # 备份原始数据库（如果存在）
 #     original_db = os.path.join(APP_PATH, "student_management.db")
 #     if os.path.exists(original_db):
@@ -41,6 +39,7 @@ class TestContext:
 
 # 设置为 False 来禁用自动启动
 AUTO_START_APP = False
+
 
 def before_all(context):
     if AUTO_START_APP:
@@ -59,18 +58,19 @@ def before_scenario(context, scenario):
     # 重置测试上下文
     context.test_context = TestContext()
     context.test_context.session = requests.Session()
-    
+
     # 删除旧的数据库文件
     db_path = os.path.join(APP_PATH, "student_management.db")
     if os.path.exists(db_path):
         os.remove(db_path)
-    
+
     # 启动Flask应用（如果需要）
     if not context.app_process:
         start_app(context)
-    
+
     # 等待应用启动
     wait_for_app()
+
 
 def start_app(context):
     """启动Flask应用"""
@@ -80,8 +80,9 @@ def start_app(context):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=APP_PATH,
-        env={**os.environ, 'PYTHONUNBUFFERED': '1'}
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
     )
+
 
 def wait_for_app():
     """等待应用启动完成"""
@@ -96,6 +97,7 @@ def wait_for_app():
         time.sleep(0.5)
     raise Exception("Flask应用未能启动")
 
+
 def after_scenario(context, scenario):
     """在每个场景结束后执行"""
     # 登出
@@ -104,13 +106,14 @@ def after_scenario(context, scenario):
     except:
         pass
 
+
 def after_all(context):
     """在所有测试结束后执行"""
     # 停止Flask应用
     if context.app_process:
         context.app_process.terminate()
         context.app_process.wait(timeout=5)
-    
+
     # 恢复原始数据库
     original_db = os.path.join(APP_PATH, "student_management.db")
     backup_db = os.path.join(APP_PATH, "student_management.db.backup")

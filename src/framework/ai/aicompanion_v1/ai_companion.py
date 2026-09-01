@@ -210,7 +210,7 @@ if prompt:
     #
     try:
         response = client.chat.completions.create(
-            model= deepseek_model,
+            model=deepseek_model,
             messages=[
                 {"role": "system", "content": st.session_state.system_str},
                 *st.session_state.messages,

@@ -69,6 +69,48 @@ uv管理 → 依赖锁死，环境统一
 
 渐进式扩展 → 加RAG、加插件、加多模型都在backend里
 
+
+
+#  需要在根目录下执行。
+uv run python -m uvicorn src.framework.ai.aicompanion_v2.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 设置环境变量 (.env)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_companion
+
+
+
+
+# FastAPi 自动文档：
+http://127.0.0.1:8000/docs
+http://127.0.0.1:8000/redoc
+http://127.0.0.1:8000/openapi.json
+        
+
+在git:(dev)的分支直接提交到origin dev即可：
+git push origin dev
+
+
+# 改维度。
+ALTER TABLE ai_messages ALTER COLUMN embedding TYPE vector(1024);
+ALTER TABLE ai_sessions ALTER COLUMN messages_embedding TYPE vector(1024);
+
+# 数据库查看，索引是否存在
+-- 查看指定索引是否存在
+SELECT 
+    indexname,
+    tablename,
+    indexdef
+FROM pg_indexes 
+WHERE tablename = 'ai_messages' 
+  AND indexname = 'idx_ai_messages_embedding';
+
+
+
+
+
+
+V1.0.3
+上下文管理、插件系统 （试试调用系统工具，创建文件，关机）、
 🚀 后续扩展方向
 鉴权：JWT + 用户登录
 
@@ -79,24 +121,6 @@ RAG：在core.py中集成向量检索
 日志：结构化日志 + ELK
 
 容器化：Dockerfile + docker-compose
-
-#  需要在根目录下执行。
-uv run python -m uvicorn src.framework.ai.aicompanion.main:app --host 0.0.0.0 --port 8000 --reload
-
-# 设置环境变量 (.env)
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_companion
-
-
-
-# FastAPi 自动文档：
-http://127.0.0.1:8000/docs
-http://127.0.0.1:8000/redoc
-http://127.0.0.1:8000/openapi.json
-        
-
-V1.0.3
-上下文管理、插件系统 （试试调用系统工具，创建文件，关机）、
-
 
 v1.0.4 
 Token统计、请求日志、异常处理、Retry（重试机制）、成本统计

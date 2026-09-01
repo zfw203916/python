@@ -3,4 +3,4 @@
 from .sessions import router as sessions
 from .chat import router as chat
 
-__all__ = ['sessions', 'chat']
+__all__ = ["sessions", "chat"]

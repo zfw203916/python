@@ -1,75 +1,469 @@
-<!-- my-test-framework/src/framework/ai/aicompanion_v2/static/index.html -->
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI智能伴侣</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f0f2f5; height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .app { display: flex; width: 1400px; max-width: 100%; height: 820px; max-height: 95vh; background: #ffffff; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.12); overflow: hidden; }
+        .sidebar { width: 260px; min-width: 260px; background: #f7f8fc; border-right: 1px solid #e8ecf1; display: flex; flex-direction: column; padding: 20px 16px; }
+        .sidebar-title { font-size: 16px; font-weight: 700; color: #1a1a2e; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+        .sidebar-title .badge { font-size: 11px; background: #667eea; color: white; padding: 2px 10px; border-radius: 20px; font-weight: 500; }
+        .record-list { flex: 1; overflow-y: auto; }
+        .record-item { padding: 12px 14px; background: white; border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s ease; border: 1px solid transparent; }
+        .record-item:hover { border-color: #667eea; transform: translateX(4px); }
+        .record-item .preview { font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .record-item.active { border-color: #667eea; background: #eef2ff; }
+        .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .header { padding: 16px 24px; border-bottom: 1px solid #e8ecf1; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-left .title { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+        .header-left .status { font-size: 13px; color: #00b894; background: #e6f9f4; padding: 2px 14px; border-radius: 20px; font-weight: 500; }
+        .header-right .session-id { font-size: 12px; color: #999; background: #f0f2f5; padding: 4px 12px; border-radius: 20px; font-family: "Courier New", monospace; }
+        .messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #fafbfc; }
+        .message { display: flex; gap: 12px; max-width: 80%; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .message.user { align-self: flex-end; flex-direction: row-reverse; }
+        .message .avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; background: #eef2ff; }
+        .message.user .avatar { background: #667eea; color: white; }
+        .message .bubble { padding: 12px 16px; border-radius: 16px; font-size: 15px; line-height: 1.6; word-break: break-word; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .message.user .bubble { background: #667eea; color: white; border-bottom-right-radius: 4px; }
+        .message.assistant .bubble { background: white; border-bottom-left-radius: 4px; }
+        .message .time-tag { font-size: 11px; color: #bbb; margin-top: 4px; display: block; }
+        .message.user .time-tag { text-align: right; }
+        .input-area { padding: 16px 24px; border-top: 1px solid #e8ecf1; background: white; flex-shrink: 0; display: flex; gap: 12px; align-items: flex-end; }
+        .input-area .input-wrapper { flex: 1; display: flex; gap: 10px; align-items: flex-end; }
+        .input-area textarea { flex: 1; padding: 12px 16px; border: 2px solid #e8ecf1; border-radius: 14px; font-size: 15px; font-family: inherit; resize: none; outline: none; transition: border-color 0.3s ease; min-height: 48px; max-height: 120px; line-height: 1.5; }
+        .input-area textarea:focus { border-color: #667eea; }
+        .input-area textarea:disabled { background: #f5f6fa; cursor: not-allowed; }
+        .input-area .btn { padding: 12px 28px; border: none; border-radius: 14px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; height: 48px; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(102,126,234,0.35); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+        .btn-success { background: #00b894; color: white; }
+        .btn-success:hover { background: #00a381; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,184,148,0.35); }
+        .btn-success:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+        .right-panel { width: 280px; min-width: 280px; background: #fafbfc; border-left: 1px solid #e8ecf1; padding: 20px 16px; display: flex; flex-direction: column; overflow-y: auto; }
+        .panel-title { font-size: 13px; font-weight: 700; color: #1a1a2e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .panel-title::after { content: ''; flex: 1; height: 1px; background: #e0e4ed; }
+        .panel-section { margin-bottom: 20px; }
+        .panel-section .section-title { font-size: 13px; font-weight: 600; color: #667eea; margin-bottom: 6px; }
+        .panel-section .section-desc { font-size: 13px; color: #666; line-height: 1.7; }
+        .panel-tag { display: inline-block; background: #eef2ff; color: #667eea; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; margin: 3px 4px 3px 0; }
+        .panel-divider { border: none; border-top: 1px solid #e8ecf1; margin: 12px 0; }
+        .settings-section { margin-top: 20px; padding: 16px; background: white; border-radius: 12px; border: 1px solid #e8ecf1; }
+        .settings-section-title { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 12px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 500; color: #666; margin-bottom: 4px; }
+        .form-input, .form-textarea { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 8px; font-size: 13px; font-family: inherit; transition: border-color 0.3s; }
+        .form-input:focus, .form-textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 2px rgba(102,126,234,0.2); }
+        .form-textarea { resize: vertical; min-height: 60px; }
+        .rules-section { margin-top: 20px; padding: 16px; background: linear-gradient(135deg, #f8f9ff 0%, #f0f2f5 100%); border-radius: 12px; border: 1px solid #e0e4ed; }
+        .rules-section-title { font-size: 14px; font-weight: 600; color: #667eea; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+        .rules-section-title::after { content: ''; flex: 1; height: 1px; background: #e0e4ed; }
+        .rules-input { width: 100%; min-height: 100px; padding: 10px; border: 2px solid #e0e4ed; border-radius: 10px; font-size: 13px; line-height: 1.6; resize: vertical; margin-bottom: 10px; font-family: inherit; background: white; }
+        .rules-input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.1); }
+        .rules-save-btn { width: 100%; margin-top: 8px; background: #667eea; color: white; border: none; border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .rules-save-btn:hover { background: #5a6fd6; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102,126,234,0.3); }
+        .rules-display { margin-top: 12px; padding: 10px; background: white; border-radius: 10px; border-left: 3px solid #667eea; display: none; }
+        .rules-display-title { font-size: 12px; font-weight: 600; color: #667eea; margin-bottom: 6px; }
+        .rules-display-text { font-size: 12px; color: #333; line-height: 1.6; white-space: pre-wrap; }
+        .messages::-webkit-scrollbar, .record-list::-webkit-scrollbar, .right-panel::-webkit-scrollbar { width: 4px; }
+        .messages::-webkit-scrollbar-track, .record-list::-webkit-scrollbar-track, .right-panel::-webkit-scrollbar-track { background: transparent; }
+        .messages::-webkit-scrollbar-thumb, .record-list::-webkit-scrollbar-thumb, .right-panel::-webkit-scrollbar-thumb { background: #d0d5e0; border-radius: 4px; }
+        .notification { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: white; font-size: 14px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+        @media (max-width: 1024px) { .right-panel { width: 240px; min-width: 240px; } }
+        @media (max-width: 768px) { .sidebar { display: none; } .app { height: 100vh; max-height: 100vh; border-radius: 0; padding: 0; } .header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; } .messages { padding: 12px 16px; } .input-area { padding: 12px 16px; flex-wrap: wrap; } .input-area .input-wrapper { flex-wrap: wrap; } .input-area textarea { min-height: 40px; font-size: 14px; } .input-area .btn { padding: 10px 18px; font-size: 14px; height: 44px; } .message { max-width: 95%; } .right-panel { width: 200px; min-width: 200px; } }
+        @media (max-width: 576px) { .right-panel { display: none; } .app { flex-direction: column; } .main { height: 100%; } }
+    </style>
 </head>
 <body>
-    <div class="app-container">
-        <!-- 侧边栏 -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h2>⚙️ AI伴侣设置</h2>
+    <div class="app">
+        <div class="sidebar">
+            <div class="sidebar-title">📜 会话记录 <span class="badge" id="recordCount">0</span></div>
+            <div style="margin-bottom: 12px; position: relative;">
+                <input type="text" 
+                    id="searchInput" 
+                    placeholder="🔍 搜索历史会话..." 
+                    style="width: 100%; padding: 8px 12px; border: 1px solid #e8ecf1; border-radius: 8px; font-size: 13px; outline: none; transition: border-color 0.3s;">
             </div>
-            
-            <div class="sidebar-content">
-                <div class="form-group">
-                    <label>AI名称</label>
-                    <input type="text" id="aiName" value="小甜甜" class="form-input">
-                </div>
-                
-                <div class="form-group">
-                    <label>伴侣性格描述</label>
-                    <textarea id="aiPersonality" rows="3" class="form-textarea">活泼开朗的台湾姑娘</textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label>伴侣行为规则</label>
-                    <textarea id="aiRules" rows="6" class="form-textarea">1、每次只回1条消息.
-                        2、禁止任何场景或状态描述性文字.
-                        3、匹配用户的语言.
-                        4、回复简短，像微信聊天一样.
-                        5、有需要的话可以用🩷 💞等emoji表情.
-                        6、用符合伴侣性格的方式对话.
-                        7、回复的内容，要充分体现伴侣的性格特征.
-                        </textarea>
-                </div>
-                
-                <button id="updateSettings" class="btn btn-primary btn-block">🔄 更新设定</button>
-                
-                <hr>
-                
-                <button id="newSession" class="btn btn-success btn-block">🔄 新建会话</button>
-                
-                <div class="session-list">
-                    <h3>历史会话</h3>
-                    <div id="sessionList"></div>
+            <div class="record-list" id="recordList">
+                <div style="text-align:center;color:#bbb;font-size:13px;padding:40px 0;">暂无记录<br><span style="font-size:12px;">开始你的第一次对话吧</span></div>
+            </div>
+        </div>
+        <div class="main">
+            <div class="header">
+                <div class="header-left"><span class="title">🤖 AI智能伴侣</span><span class="status" id="statusBadge">● 在线</span></div>
+                <div class="header-right"><span class="session-id" id="sessionDisplay">会话: 未创建</span></div>
+            </div>
+            <div class="messages" id="messageList">
+                <div class="message assistant">
+                    <div class="avatar">🤖</div>
+                    <div><div class="bubble">你好！我是你的AI伴侣 🎯<br>点击"新建会话"开始对话，或者选择已有的会话继续聊天。<br>你可以在右侧设置我的性格特征和行为规则哦！</div><span class="time-tag" id="welcomeTime"></span></div>
                 </div>
             </div>
-        </aside>
-        
-        <!-- 主聊天区 -->
-        <main class="chat-main">
-            <header class="chat-header">
-                <h1>AI智能伴侣</h1>
-                <span id="currentSessionName">会话: 无</span>
-            </header>
-            
-            <div class="chat-messages" id="chatMessages">
-                <!-- 消息将在这里显示 -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <textarea id="msgInput" placeholder="输入消息，AI实时响应…" rows="1" disabled></textarea>
+                    <button class="btn btn-success" id="sendBtn" disabled>✉️ 发送</button>
+                </div>
+                <button class="btn btn-primary" id="newGameBtn">🎮 新建会话</button>
             </div>
-            
-            <div class="chat-input-area">
-                <input type="text" id="messageInput" placeholder="请输入您的问题..." class="chat-input">
-                <button id="sendButton" class="btn btn-primary">发送</button>
+        </div>
+        <div class="right-panel">
+            <div class="panel-title">📖 设置面板</div>
+            <div class="settings-section">
+                <div class="settings-section-title">🎭 伴侣设置</div>
+                <div class="form-group"><label>名字</label><input type="text" id="aiName" class="form-input" value="小甜甜" placeholder="AI伴侣的名字"></div>
+                <div class="form-group"><label>性格特征</label><textarea id="aiPersonality" class="form-textarea" placeholder="描述AI伴侣的性格...">活泼开朗的台湾姑娘</textarea></div>
             </div>
-        </main>
+            <div class="rules-section">
+                <div class="rules-section-title">📋 伴侣行为规则</div>
+                <div class="section-desc" style="font-size: 12px; color: #888; margin-bottom: 8px;">设置AI伴侣的对话规则，AI将严格遵守这些规则。</div>
+                <textarea id="rulesInput" class="rules-input" placeholder="输入行为规则，例如：&#10;1. 说话要温柔&#10;2. 多用表情符号&#10;3. 回复要简短..."></textarea>
+                <button class="rules-save-btn" id="updateRulesBtn">💾 保存规则</button>
+                <div class="rules-display" id="rulesDisplay"><div class="rules-display-title">📌 当前规则</div><div class="rules-display-text" id="rulesText"></div></div>
+            </div>
+            <hr class="panel-divider">
+            <div class="panel-section"><div class="section-title">✨ 特色功能</div><div style="margin-top:4px;"><span class="panel-tag">智能对话</span><span class="panel-tag">流式响应</span><span class="panel-tag">实时更新</span></div><div class="section-desc" style="margin-top:6px;font-size:12px;color:#888;">AI会根据你设置的性格和行为规则进行对话，支持流式输出。</div></div>
+            <hr class="panel-divider">
+            <div class="panel-section"><div class="section-title">👥 适合人群</div><div style="margin-top:4px;"><span class="panel-tag">社交练习</span><span class="panel-tag">情感陪伴</span><span class="panel-tag">语言学习</span></div></div>
+        </div>
     </div>
 
-    <script src="/static/script.js"></script>
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+
+        const messageList = document.getElementById('messageList');
+        const msgInput = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const newGameBtn = document.getElementById('newGameBtn');
+        const sessionDisplay = document.getElementById('sessionDisplay');
+        const statusBadge = document.getElementById('statusBadge');
+        const recordList = document.getElementById('recordList');
+        const recordCount = document.getElementById('recordCount');
+        const rulesInput = document.getElementById('rulesInput');
+        const updateRulesBtn = document.getElementById('updateRulesBtn');
+        const rulesDisplay = document.getElementById('rulesDisplay');
+        const rulesText = document.getElementById('rulesText');
+        const aiName = document.getElementById('aiName');
+        const aiPersonality = document.getElementById('aiPersonality');
+
+        const defaultRules = `1、每次只回1条消息\n2、禁止任何场景或状态描述性文字\n3、匹配用户的语言\n4、回复简短，像微信聊天一样\n5、有需要的话可以用🩷 💞等emoji表情\n6、用符合伴侣性格的方式对话\n7、回复的内容，要充分体现伴侣的性格特征`;
+
+        let currentSessionId = null;
+
+        // 添加搜索框 DOM 引用
+        const searchInput = document.getElementById('searchInput');
+
+        // 搜索防抖（防止每次打字都请求）
+        let searchTimer = null;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                handleSearch(searchInput.value.trim());
+            }, 300); // 300毫秒防抖
+        });
+
+        // 搜索函数
+        async function handleSearch(query) {
+            if (!query) {
+                // 清空搜索，重新加载全部会话
+                await loadSessions();
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/sessions/search?q=${encodeURIComponent(query)}`);
+                if (!response.ok) throw new Error('搜索失败');
+                const results = await response.json();
+                renderSessionList(results); // 复用已有的渲染函数
+            } catch (error) {
+                console.error('搜索失败:', error);
+            }
+        }
+
+        function getFullTime() {
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        }
+
+        function addMessage(role, content) {
+            const isUser = role === 'user';
+            const avatar = isUser ? '👤' : '🤖';
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.innerHTML = `<div class="avatar">${avatar}</div><div><div class="bubble">${content}</div><span class="time-tag">${getFullTime()}</span></div>`;
+            messageList.appendChild(div);
+            messageList.scrollTop = messageList.scrollHeight;
+        }
+
+        function setStatus(text, type = 'online') {
+            const colors = { online: '#00b894', offline: '#ff6b6b', loading: '#fdcb6e' };
+            statusBadge.textContent = `● ${text}`;
+            statusBadge.style.color = colors[type] || '#00b894';
+        }
+
+        function updateSessionUI(sessionId) {
+            currentSessionId = sessionId;
+            if (sessionId) {
+                sessionDisplay.textContent = `会话: ${sessionId.slice(0, 12)}...`;
+                setStatus('在线', 'online');
+                msgInput.disabled = false;
+                sendBtn.disabled = false;
+            } else {
+                sessionDisplay.textContent = '会话: 未创建';
+                setStatus('离线', 'offline');
+                msgInput.disabled = true;
+                sendBtn.disabled = true;
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            const colors = { success: '#52c41a', error: '#ff4d4f', info: '#1890ff' };
+            notification.style.background = colors[type] || colors.success;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        function displayRules(rules) {
+            if (rules) { rulesDisplay.style.display = 'block'; rulesText.textContent = rules; }
+            else { rulesDisplay.style.display = 'none'; rulesText.textContent = ''; }
+        }
+
+        async function createSession() {
+            setStatus('连接中…', 'loading');
+            try {
+                const response = await fetch(`${API_BASE}/api/sessions`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nick_name: aiName.value || '小甜甜', nature: aiPersonality.value || '活泼开朗的台湾姑娘', extra_rules: rulesInput.value || defaultRules })
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                if (data.session_id) {
+                    updateSessionUI(data.session_id);
+                    messageList.innerHTML = ''; // 【已删除欢迎语，只清空】
+                    rulesInput.value = defaultRules;
+                    displayRules(defaultRules);
+                    await loadSessions();
+                    return data.session_id;
+                } else { throw new Error(data.detail || '后端返回格式异常'); }
+            } catch (error) {
+                console.error('创建会话失败:', error);
+                addMessage('assistant', `❌ 创建会话失败: ${error.message}`);
+                updateSessionUI(null);
+                return null;
+            }
+        }
+
+        async function fetchSessions() {
+            try {
+                const response = await fetch(`${API_BASE}/api/sessions`);
+                if (!response.ok) throw new Error('Failed to fetch sessions');
+                return await response.json();
+            } catch (error) { console.error('Error fetching sessions:', error); return []; }
+        }
+
+        async function getSession(sessionId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/sessions/${sessionId}`);
+                if (!response.ok) throw new Error('Failed to get session');
+                return await response.json();
+            } catch (error) { console.error('Error getting session:', error); return null; }
+        }
+
+        async function deleteSession(sessionId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/sessions/${sessionId}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error('Failed to delete session');
+                return await response.json();
+            } catch (error) { console.error('Error deleting session:', error); return null; }
+        }
+
+        async function updateRules() {
+            if (!currentSessionId) { showNotification('请先创建或选择一个会话', 'error'); return; }
+            const newRules = rulesInput.value.trim();
+            try {
+                const response = await fetch(`${API_BASE}/api/sessions/${currentSessionId}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ extra_rules: newRules })
+                });
+                if (response.ok) { showNotification('✅ 行为规则已更新！', 'success'); displayRules(newRules); }
+                else { showNotification('❌ 更新失败，请重试', 'error'); }
+            } catch (error) { showNotification('❌ 网络错误：' + error.message, 'error'); }
+        }
+
+        async function sendMessageStream(content) {
+            if (!currentSessionId) { addMessage('assistant', '⚠️ 请先点击「新建会话」创建会话'); return; }
+            // 【新增】如果正在等待AI回复，禁止发送下一条
+            if (sendBtn.disabled) {
+                showNotification('请等待AI回复完成后再发送消息', 'info');
+                return;
+            }
+            addMessage('user', content);
+            msgInput.value = '';
+            sendBtn.disabled = true;
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message assistant';
+            messageDiv.innerHTML = `<div class="avatar">🤖</div><div><div class="bubble" id="ai-response">思考中...</div><span class="time-tag"></span></div>`;
+            messageList.appendChild(messageDiv);
+            messageList.scrollTop = messageList.scrollHeight;
+            let fullResponse = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/chat/stream`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: content, session_id: currentSessionId })
+                });
+                if (!response.ok) throw new Error('Stream request failed');
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') continue;
+                            try {
+                                const chunk = JSON.parse(data);
+                                if (chunk.type === 'chunk') { fullResponse += chunk.content || ''; document.getElementById('ai-response').textContent = fullResponse; messageList.scrollTop = messageList.scrollHeight; }
+                                else if (chunk.type === 'complete') { fullResponse = chunk.full_response; document.getElementById('ai-response').textContent = fullResponse; if (chunk.session_id) currentSessionId = chunk.session_id; loadSessions(); }
+                            } catch (e) { console.error('Error parsing chunk:', e); }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error in stream:', error);
+                document.getElementById('ai-response').textContent = '❌ 发生错误: ' + error.message;
+            }
+            sendBtn.disabled = false;
+            msgInput.focus();
+        }
+
+        async function loadSessions() {
+            const sessions = await fetchSessions();
+            renderSessionList(sessions);
+        }
+
+        function renderSessionList(sessions) {
+            recordList.innerHTML = '';
+            recordCount.textContent = sessions.length;
+            if (sessions.length === 0) { recordList.innerHTML = '<div style="text-align:center;color:#bbb;font-size:13px;padding:40px 0;">暂无会话<br><span style="font-size:12px;">开始你的第一次对话吧</span></div>'; return; }
+            for (const session of sessions) {
+                const item = document.createElement('div');
+                item.className = 'record-item';
+                if (session.id === currentSessionId) item.classList.add('active');
+
+                let sessionTitle = session.session_name || session.id.slice(0, 8);
+                if (sessionTitle.length > 10 && session.messages && session.messages.length > 0) {
+                    const firstUserMsg = session.messages.find(m => m.role === 'user');
+                    const firstMsg = firstUserMsg ? firstUserMsg.content : '';
+                    sessionTitle = sessionTitle + ' ' + firstMsg;
+                }
+                if (sessionTitle.length > 20) { sessionTitle = sessionTitle.substring(0, 20) + '...'; }
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'preview';
+                nameSpan.textContent = sessionTitle;
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '×';
+                deleteBtn.style.cssText = 'background:none;border:none;color:#999;cursor:pointer;font-size:14px;margin-left:8px;';
+                deleteBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (confirm('确定要删除这个会话吗？')) {
+                        await deleteSession(session.id);
+                        if (currentSessionId === session.id) { currentSessionId = null; messageList.innerHTML = ''; updateSessionUI(null); }
+                        loadSessions();
+                    }
+                });
+                const itemContent = document.createElement('div');
+                itemContent.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+                itemContent.appendChild(nameSpan);
+                itemContent.appendChild(deleteBtn);
+                item.appendChild(itemContent);
+
+                item.addEventListener('click', async () => {
+                    const data = await getSession(session.id);
+                    if (data) {
+                        currentSessionId = session.id;
+                        messageList.innerHTML = '';
+                        if (data.messages && data.messages.length > 0) {
+                            // 强制排序：用户消息在前，AI消息在后
+                            const sortedMessages = [...data.messages].sort((a, b) => {
+                                if (a.role === 'user' && b.role === 'assistant') return -1;
+                                if (a.role === 'assistant' && b.role === 'user') return 1;
+                                return 0;
+                            });
+                            for (const msg of sortedMessages) addMessage(msg.role, msg.content);
+                        } else { addMessage('assistant', '这个会话还没有消息，开始对话吧！'); }
+                        aiName.value = data.nick_name;
+                        aiPersonality.value = data.nature;
+                        rulesInput.value = data.extra_rules || defaultRules;
+                        displayRules(data.extra_rules || defaultRules);
+                        updateSessionUI(session.id);
+                        loadSessions();
+                    }
+                });
+                recordList.appendChild(item);
+            }
+        }
+
+        newGameBtn.addEventListener('click', async () => {
+            newGameBtn.disabled = true;
+            newGameBtn.textContent = '⏳ 创建中…';
+            await createSession();
+            newGameBtn.textContent = '🎮 新建会话';
+            newGameBtn.disabled = false;
+        });
+
+        sendBtn.addEventListener('click', () => { const content = msgInput.value.trim(); if (content) sendMessageStream(content); });
+        updateRulesBtn.addEventListener('click', updateRules);
+        msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } });
+        msgInput.addEventListener('input', () => { msgInput.style.height = 'auto'; msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px'; });
+
+        async function init() {
+            document.getElementById('welcomeTime').textContent = getFullTime();
+            rulesInput.value = defaultRules;
+            displayRules(defaultRules);
+            await loadSessions();
+            const sessions = await fetchSessions();
+            if (sessions.length > 0) {
+                const data = await getSession(sessions[0].id);
+                if (data) {
+                    currentSessionId = sessions[0].id;
+                    messageList.innerHTML = '';
+                    if (data.messages && data.messages.length > 0) {
+                        const sortedMessages = [...data.messages].sort((a, b) => {
+                            if (a.role === 'user' && b.role === 'assistant') return -1;
+                            if (a.role === 'assistant' && b.role === 'user') return 1;
+                            return 0;
+                        });
+                        for (const msg of sortedMessages) addMessage(msg.role, msg.content);
+                    }
+                    aiName.value = data.nick_name;
+                    aiPersonality.value = data.nature;
+                    rulesInput.value = data.extra_rules || defaultRules;
+                    displayRules(data.extra_rules || defaultRules);
+                    updateSessionUI(currentSessionId);
+                }
+            } else { await createSession(); }
+        }
+
+        init();
+        console.log('📦 AI智能伴侣已加载');
+    </script>
 </body>
 </html>
