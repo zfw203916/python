@@ -40,7 +40,6 @@ class SessionUpdate(BaseModel):
     extra_rules: Optional[str] = None
 
 
-
 class SessionResponse(BaseModel):
     id: str
     session_name: str

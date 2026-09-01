@@ -4,12 +4,13 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from openai import OpenAI
 from dotenv import load_dotenv
+
 # 加载 .env 文件
 load_dotenv()
 # 初始化OpenAI客户端（用你的DeepSeek或OpenAI）
 client = OpenAI(
     api_key=os.environ.get("SILI_API_KEY"),
-    base_url=os.environ.get("SILI_BASE_URL")  # 如果DeepSeek支持embeddings
+    base_url=os.environ.get("SILI_BASE_URL"),  # 如果DeepSeek支持embeddings
 )
 OPENAI_MODEL = os.environ.get("SILI_Embedding_MODEL")
 print(f"client的内容：{client}")
@@ -30,25 +31,25 @@ for i, (msg_id, content) in enumerate(messages):
     try:
         # 生成1536维向量
         response = client.embeddings.create(
-            #model="text-embedding-3-small",  # OpenAI模型，输出1536维
+            # model="text-embedding-3-small",  # OpenAI模型，输出1536维
             model=OPENAI_MODEL,
-            input=content
+            input=content,
         )
         embedding = response.data[0].embedding
-        
+
         db.execute(
             # text("UPDATE ai_messages SET embedding = :embedding::vector WHERE id = :id"),
             # {"embedding": embedding, "id": msg_id}
-    
-            text("UPDATE ai_messages SET embedding = CAST(:embedding AS vector) WHERE id = :id"),
-            {"embedding": embedding, "id": msg_id}
-       
+            text(
+                "UPDATE ai_messages SET embedding = CAST(:embedding AS vector) WHERE id = :id"
+            ),
+            {"embedding": embedding, "id": msg_id},
         )
-        
+
         if (i + 1) % 10 == 0:
             db.commit()
             print(f"  已处理 {i+1}/{len(messages)}")
-            
+
     except Exception as e:
         print(f"  ❌ 失败: {e}")
 

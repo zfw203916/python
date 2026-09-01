@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from ..database import MessageModel
 from dotenv import load_dotenv
-import os
 from pathlib import Path
 
 
@@ -13,29 +12,28 @@ from pathlib import Path
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
+
 class VectorService:
     load_dotenv()  # 加载.env文件
-    def __init__(self):
 
+    def __init__(self):
         self.embedding_api_key = os.environ.get("EMBEDDING_API_KEY")
         self.embedding_url = os.environ.get("EMBEDDING_URL")
         # Embedding模型配置
         self.embedding_model = os.environ.get("EMBEDDING_MODEL")
 
-        #独立的Embedding客户端
+        # 独立的Embedding客户端
         if self.embedding_api_key:
             self.embedding_client = OpenAI(
-                api_key = self.embedding_api_key,
-                base_url = self.embedding_url
+                api_key=self.embedding_api_key, base_url=self.embedding_url
             )
         else:
             self.embedding_client = None
 
-        #RAG配置
+        # RAG配置
         self.enable_rag = os.environ.get("ENABLE_RAG", "true").lower() == "true"
         self.rag_top_k = int(os.environ.get("RAG_TOP_K", "5"))
-        self.rag_threshold = float(os.environ.get("RAG_THRESHOLD","0.5"))
-
+        self.rag_threshold = float(os.environ.get("RAG_THRESHOLD", "0.5"))
 
     def get_embedding(self, text: str) -> list:
         """获取文本的向量表示"""
@@ -43,10 +41,9 @@ class VectorService:
             return None
         try:
             # DeepSeek可能不支持embeddings，返回None
-            #如果使用OpenAI，可以启用下面的代码
+            # 如果使用OpenAI，可以启用下面的代码
             response = self.embedding_client.embeddings.create(
-                model=self.embedding_model,
-                input=text
+                model=self.embedding_model, input=text
             )
             return response.data[0].embedding
             # return None
@@ -55,9 +52,10 @@ class VectorService:
             return None
 
     def save_message_with_embedding(
-       self, db: Session, session_id: str, role: str, content: str):
+        self, db: Session, session_id: str, role: str, content: str
+    ):
         """搜索相似消息，增加相似度阈值过滤"""
-        
+
         """保存消息并生成向量"""
         try:
             embedding = self.get_embedding(content)
@@ -72,7 +70,13 @@ class VectorService:
             return None
 
     def search_similar_messages(
-        self, db: Session, query: str, session_id: str = None, exclude_id: str = None, limit: int = 5, threshold: float = 0.5
+        self,
+        db: Session,
+        query: str,
+        session_id: str = None,
+        exclude_id: str = None,
+        limit: int = 5,
+        threshold: float = 0.5,
     ) -> list:
         """搜索相似消息"""
         """
@@ -105,7 +109,7 @@ class VectorService:
                 },
             )
             # ✅ 先转成字典列表
-            results =  [
+            results = [
                 {
                     "id": row[0],
                     "session_id": row[1],

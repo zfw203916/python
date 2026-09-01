@@ -11,6 +11,7 @@ import os
 from dotenv import load_dotenv
 from sqlalchemy import text
 from pathlib import Path
+from sqlalchemy import Boolean
 
 # 指定 .env 文件路径（项目根目录）
 env_path = Path(__file__).parent.parent / ".env"
@@ -33,7 +34,7 @@ class SessionModel(Base):
     messages = Column(JSON, default=[])  # 存储消息历史
     # 用于向量检索的消息向量（可选）
     messages_embedding = Column(Vector(1024))  # OpenAI embedding维度
-
+    is_pinned = Column(Boolean, default=False)
 
 class MessageModel(Base):
     __tablename__ = "ai_messages"
@@ -58,13 +59,16 @@ def init_db():
     """初始化数据库，创建表和pgvector扩展"""
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        
+
         # 新增：创建向量索引加速检索,直接sql
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_ai_messages_embedding ON ai_messages USING ivfflat (embedding vector_cosine_ops) WITH (lists=100)"
-        ))
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_ai_messages_embedding ON ai_messages USING ivfflat (embedding vector_cosine_ops) WITH (lists=100)"
+            )
+        )
         conn.commit()
         Base.metadata.create_all(bind=engine)
+
 
 def get_db():
     db = SessionLocal()

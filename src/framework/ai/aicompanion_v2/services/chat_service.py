@@ -6,7 +6,6 @@ import uuid
 from ..database import SessionModel, SessionLocal
 from .vector_service import VectorService
 from dotenv import load_dotenv
-import os
 from pathlib import Path
 
 
@@ -30,8 +29,8 @@ class ChatService:
         """生成系统提示"""
         rules = (
             extra_rules
-            if extra_rules else 
-            """
+            if extra_rules
+            else """
                 1、每次只回1条消息.
                 2、禁止任何场景或状态描述性文字.
                 3、匹配用户的语言.
@@ -64,7 +63,9 @@ class ChatService:
             )
             if not session:
                 # 创建新会话
-                session_name = datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
+                session_name = (
+                    datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
+                )
                 session = SessionModel(
                     id=session_id,
                     session_name=session_name,
@@ -82,7 +83,7 @@ class ChatService:
             # 在 chat 方法中，准备 API 请求消息之前添加
             # === 新增：RAG检索增强 ===
             # 检索相似历史消息（当前会话 + 全局）
-            
+
             # ===== 2. 生成系统提示 =====
             system_str = self.get_system_prompt(
                 session.nick_name,
@@ -101,28 +102,29 @@ class ChatService:
             db.refresh(session)
 
             # ===== 4. 保存用户消息向量=====
-            saved_message =  self.vector_service.save_message_with_embedding(db,str(session_id), "user", user_message)
+            saved_message = self.vector_service.save_message_with_embedding(
+                db, str(session_id), "user", user_message
+            )
             current_message_id = str(saved_message.id) if saved_message else None
-
 
             # ===== 5. RAG检索增强 =====
             rag_context = ""
             if self.vector_service.enable_rag:
                 # 检索相似历史消息
-                similar_messages  = self.vector_service.search_similar_messages(
+                similar_messages = self.vector_service.search_similar_messages(
                     db,
                     user_message,
-                    #session_id=str(session_id),
-                    session_id = None,  # ← 关键修复：None = 跨会话检索
-                    exclude_id= current_message_id,
+                    # session_id=str(session_id),
+                    session_id=None,  # ← 关键修复：None = 跨会话检索
+                    exclude_id=current_message_id,
                     limit=self.vector_service.rag_top_k,
                     threshold=self.vector_service.rag_threshold,
                 )
                 if similar_messages:
-                    #构建RAG上下文
+                    # 构建RAG上下文
                     rag_parts = []
                     for msg in similar_messages:
-                        role = "用户" if msg['role'] == 'user' else session.nick_name
+                        role = "用户" if msg["role"] == "user" else session.nick_name
                         rag_parts.append(f"[{role}]:{msg['content']}")
                     rag_context = "\n\n【参考历史对话】\n" + "\n".join(rag_parts)
                     # 注入到系统提示中
@@ -130,7 +132,9 @@ class ChatService:
                     # 🟢 调试日志
                     print(f"🔍 RAG召回{len(similar_messages)}条相似消息 ")
                     for msg in similar_messages:
-                        print(f"  相似度:{msg['similarity']:.3f} | {msg['content'][:30]}...")
+                        print(
+                            f"  相似度:{msg['similarity']:.3f} | {msg['content'][:30]}..."
+                        )
 
             # ===== 6. 准备API请求 =====
             api_messages = [{"role": "system", "content": system_str}, *messages]
@@ -165,7 +169,14 @@ class ChatService:
             db.close()
             raise e
 
-    def _handle_stream_response(self, session_id: str,messages: List[Dict],response, nick_name: str,nature: str, extra_rules: str,
+    def _handle_stream_response(
+        self,
+        session_id: str,
+        messages: List[Dict],
+        response,
+        nick_name: str,
+        nature: str,
+        extra_rules: str,
     ):
         """处理流式响应"""
         full_response = ""
@@ -184,7 +195,7 @@ class ChatService:
                         "type": "chunk",
                         "content": delta.content,
                         "full_response": full_response,
-                        #"thinking": thinking_content,
+                        # "thinking": thinking_content,
                     }
 
         # 流结束后，保存完整的响应到数据库
@@ -205,19 +216,19 @@ class ChatService:
                     try:
                         summary_input = messages[:4]
                         summary_prompt = f"请根据以下对话，用不超过8个字总结核心主题，不要加标点，不要带引号：\n{summary_input}"
-                        # 调用大模型总结LLM 
+                        # 调用大模型总结LLM
                         summary_resp = self.client.chat.completions.create(
                             model=self.model,
-                            messages=[{"role":"user","content":summary_prompt}],
+                            messages=[{"role": "user", "content": summary_prompt}],
                             max_tokens=20,
-                            temperature=0.3
+                            temperature=0.3,
                         )
                         new_title = summary_resp.choices[0].message.content.strip()
 
                         # 如果总结成功且非空，更新标题
                         if new_title and len(new_title) <= 15:
                             session.session_name = new_title
-                    except Exception as summary_error :
+                    except Exception as summary_error:
                         # 总结失败不要紧，保持原标题（日期），不报错
                         print(f"⚠️ 自动总结标题失败，保留原标题: {summary_error}")
 
@@ -234,7 +245,7 @@ class ChatService:
         yield {
             "type": "complete",
             "full_response": full_response,
-            #"thinking": thinking_content,
+            # "thinking": thinking_content,
             "session_id": session_id,
         }
 
@@ -266,19 +277,19 @@ class ChatService:
                     try:
                         summary_input = messages[:4]
                         summary_prompt = f"请根据以下对话，用不超过8个字总结核心主题，不要加标点，不要带引号：\n{summary_input}"
-                        # 调用大模型总结LLM 
+                        # 调用大模型总结LLM
                         summary_resp = self.client.chat.completions.create(
                             model=self.model,
-                            messages=[{"role":"user","content":summary_prompt}],
+                            messages=[{"role": "user", "content": summary_prompt}],
                             max_tokens=20,
-                            temperature=0.3
+                            temperature=0.3,
                         )
                         new_title = summary_resp.choices[0].message.content.strip()
 
                         # 如果总结成功且非空，更新标题
                         if new_title and len(new_title) <= 15:
                             session.session_name = new_title
-                    except Exception as summary_error :
+                    except Exception as summary_error:
                         # 总结失败不要紧，保持原标题（日期），不报错
                         print(f"⚠️ 自动总结标题失败，保留原标题: {summary_error}")
                 db.commit()
@@ -297,7 +308,9 @@ class ChatService:
         """创建新会话"""
         db = SessionLocal()
         try:
-            session_name = datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
+            session_name = (
+                datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
+            )
             session_id = uuid.uuid4()
             system_str = self.get_system_prompt(nick_name, nature, extra_rules)
 
@@ -307,7 +320,7 @@ class ChatService:
                 nick_name=nick_name,
                 nature=nature,
                 extra_rules=extra_rules,
-                system_str= system_str,
+                system_str=system_str,
                 messages=[],
             )
             db.add(session)

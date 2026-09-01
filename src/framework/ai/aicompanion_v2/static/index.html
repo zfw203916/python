@@ -16,6 +16,7 @@
         .record-item:hover { border-color: #667eea; transform: translateX(4px); }
         .record-item .preview { font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .record-item.active { border-color: #667eea; background: #eef2ff; }
+        .record-item.pinned { background: #fffbe6; border-left: 3px solid #f39c12; }
         .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
         .header { padding: 16px 24px; border-bottom: 1px solid #e8ecf1; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .header-left { display: flex; align-items: center; gap: 12px; }
@@ -74,6 +75,10 @@
         .messages::-webkit-scrollbar-track, .record-list::-webkit-scrollbar-track, .right-panel::-webkit-scrollbar-track { background: transparent; }
         .messages::-webkit-scrollbar-thumb, .record-list::-webkit-scrollbar-thumb, .right-panel::-webkit-scrollbar-thumb { background: #d0d5e0; border-radius: 4px; }
         .notification { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: white; font-size: 14px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideIn 0.3s ease; }
+        .btn-outline { background: transparent; color: #667eea; border: 2px solid #667eea; border-radius: 14px; cursor: pointer; transition: all 0.3s; }
+        .btn-outline:hover { background: #667eea; color: white; }
+        .btn-outline.recording { background: #ff4d4f; color: white; border-color: #ff4d4f; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
         @media (max-width: 1024px) { .right-panel { width: 240px; min-width: 240px; } }
@@ -86,10 +91,7 @@
         <div class="sidebar">
             <div class="sidebar-title">📜 会话记录 <span class="badge" id="recordCount">0</span></div>
             <div style="margin-bottom: 12px; position: relative;">
-                <input type="text" 
-                    id="searchInput" 
-                    placeholder="🔍 搜索历史会话..." 
-                    style="width: 100%; padding: 8px 12px; border: 1px solid #e8ecf1; border-radius: 8px; font-size: 13px; outline: none; transition: border-color 0.3s;">
+                <input type="text" id="searchInput" placeholder="🔍 搜索历史会话..." style="width: 100%; padding: 8px 12px; border: 1px solid #e8ecf1; border-radius: 8px; font-size: 13px; outline: none; transition: border-color 0.3s;">
             </div>
             <div class="record-list" id="recordList">
                 <div style="text-align:center;color:#bbb;font-size:13px;padding:40px 0;">暂无记录<br><span style="font-size:12px;">开始你的第一次对话吧</span></div>
@@ -107,8 +109,9 @@
                 </div>
             </div>
             <div class="input-area">
-                <div class="input-wrapper">
+                <div class="input-wrapper">      
                     <textarea id="msgInput" placeholder="输入消息，AI实时响应…" rows="1" disabled></textarea>
+                    <button class="btn btn-outline" id="micBtn" title="语音输入" style="height: 48px; padding: 0 12px; font-size: 20px;">🎤</button>
                     <button class="btn btn-success" id="sendBtn" disabled>✉️ 发送</button>
                 </div>
                 <button class="btn btn-primary" id="newGameBtn">🎮 新建会话</button>
@@ -137,7 +140,6 @@
 
     <script>
         const API_BASE = 'http://127.0.0.1:8000';
-
         const messageList = document.getElementById('messageList');
         const msgInput = document.getElementById('msgInput');
         const sendBtn = document.getElementById('sendBtn');
@@ -152,27 +154,20 @@
         const rulesText = document.getElementById('rulesText');
         const aiName = document.getElementById('aiName');
         const aiPersonality = document.getElementById('aiPersonality');
-
-        const defaultRules = `1、每次只回1条消息\n2、禁止任何场景或状态描述性文字\n3、匹配用户的语言\n4、回复简短，像微信聊天一样\n5、有需要的话可以用🩷 💞等emoji表情\n6、用符合伴侣性格的方式对话\n7、回复的内容，要充分体现伴侣的性格特征`;
-
-        let currentSessionId = null;
-
-        // 添加搜索框 DOM 引用
         const searchInput = document.getElementById('searchInput');
 
-        // 搜索防抖（防止每次打字都请求）
+        const defaultRules = `1、每次只回1条消息\n2、禁止任何场景或状态描述性文字\n3、匹配用户的语言\n4、回复简短，像微信聊天一样\n5、有需要的话可以用🩷 💞等emoji表情\n6、用符合伴侣性格的方式对话\n7、回复的内容，要充分体现伴侣的性格特征`;
+        let currentSessionId = null;
+
         let searchTimer = null;
         searchInput.addEventListener('input', () => {
             clearTimeout(searchTimer);
-            searchTimer = setTimeout(() => {
-                handleSearch(searchInput.value.trim());
-            }, 300); // 300毫秒防抖
+            searchTimer = setTimeout(() => { handleSearch(searchInput.value.trim()); }, 300);
         });
 
-        // 搜索函数
         async function handleSearch(query) {
             if (!query) {
-                // 清空搜索，重新加载全部会话
+                // 如果清空了搜索框，直接加载全部会话
                 await loadSessions();
                 return;
             }
@@ -181,7 +176,7 @@
                 const response = await fetch(`${API_BASE}/api/sessions/search?q=${encodeURIComponent(query)}`);
                 if (!response.ok) throw new Error('搜索失败');
                 const results = await response.json();
-                renderSessionList(results); // 复用已有的渲染函数
+                renderSessionList(results);
             } catch (error) {
                 console.error('搜索失败:', error);
             }
@@ -214,13 +209,11 @@
             if (sessionId) {
                 sessionDisplay.textContent = `会话: ${sessionId.slice(0, 12)}...`;
                 setStatus('在线', 'online');
-                msgInput.disabled = false;
-                sendBtn.disabled = false;
+                msgInput.disabled = false; sendBtn.disabled = false;
             } else {
                 sessionDisplay.textContent = '会话: 未创建';
                 setStatus('离线', 'offline');
-                msgInput.disabled = true;
-                sendBtn.disabled = true;
+                msgInput.disabled = true; sendBtn.disabled = true;
             }
         }
 
@@ -250,7 +243,7 @@
                 const data = await response.json();
                 if (data.session_id) {
                     updateSessionUI(data.session_id);
-                    messageList.innerHTML = ''; // 【已删除欢迎语，只清空】
+                    messageList.innerHTML = '';
                     rulesInput.value = defaultRules;
                     displayRules(defaultRules);
                     await loadSessions();
@@ -259,8 +252,7 @@
             } catch (error) {
                 console.error('创建会话失败:', error);
                 addMessage('assistant', `❌ 创建会话失败: ${error.message}`);
-                updateSessionUI(null);
-                return null;
+                updateSessionUI(null); return null;
             }
         }
 
@@ -302,22 +294,16 @@
 
         async function sendMessageStream(content) {
             if (!currentSessionId) { addMessage('assistant', '⚠️ 请先点击「新建会话」创建会话'); return; }
-            // 【新增】如果正在等待AI回复，禁止发送下一条
-            if (sendBtn.disabled) {
-                showNotification('请等待AI回复完成后再发送消息', 'info');
-                return;
-            }
+            if (sendBtn.disabled) { showNotification('请等待AI回复完成后再发送消息', 'info'); return; }
             addMessage('user', content);
             msgInput.value = '';
             sendBtn.disabled = true;
-
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message assistant';
             messageDiv.innerHTML = `<div class="avatar">🤖</div><div><div class="bubble" id="ai-response">思考中...</div><span class="time-tag"></span></div>`;
             messageList.appendChild(messageDiv);
             messageList.scrollTop = messageList.scrollHeight;
             let fullResponse = '';
-
             try {
                 const response = await fetch(`${API_BASE}/api/chat/stream`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: content, session_id: currentSessionId })
@@ -348,12 +334,15 @@
                 console.error('Error in stream:', error);
                 document.getElementById('ai-response').textContent = '❌ 发生错误: ' + error.message;
             }
-            sendBtn.disabled = false;
-            msgInput.focus();
+            sendBtn.disabled = false; msgInput.focus();
         }
 
         async function loadSessions() {
+             // 🟢 1. 强制清空搜索框，防止残留搜索状态影响显示
+            searchInput.value = '';
+            // 🟢 2. 强制从后端拉取最新的全部会话
             const sessions = await fetchSessions();
+            // 🟢 3. 重新渲染列表，后端返回什么，前端就显示什么
             renderSessionList(sessions);
         }
 
@@ -365,7 +354,17 @@
                 const item = document.createElement('div');
                 item.className = 'record-item';
                 if (session.id === currentSessionId) item.classList.add('active');
-
+                if (session.is_pinned) item.classList.add('pinned');
+                const pinBtn = document.createElement('button');
+                pinBtn.textContent = session.is_pinned ? '📌' : '☆';
+                pinBtn.style.cssText = 'background:none;border:none;color:#f39c12;cursor:pointer;font-size:14px;margin-left:4px;';
+                pinBtn.title = session.is_pinned ? '取消置顶' : '置顶';
+                pinBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const url = session.is_pinned ? `${API_BASE}/api/sessions/${session.id}/unpin` : `${API_BASE}/api/sessions/${session.id}/pin`;
+                    const response = await fetch(url, { method: 'POST' });
+                    if (response.ok) { await loadSessions(); showNotification('操作成功', 'success'); }
+                });
                 let sessionTitle = session.session_name || session.id.slice(0, 8);
                 if (sessionTitle.length > 10 && session.messages && session.messages.length > 0) {
                     const firstUserMsg = session.messages.find(m => m.role === 'user');
@@ -373,11 +372,9 @@
                     sessionTitle = sessionTitle + ' ' + firstMsg;
                 }
                 if (sessionTitle.length > 20) { sessionTitle = sessionTitle.substring(0, 20) + '...'; }
-
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'preview';
                 nameSpan.textContent = sessionTitle;
-
                 const deleteBtn = document.createElement('button');
                 deleteBtn.textContent = '×';
                 deleteBtn.style.cssText = 'background:none;border:none;color:#999;cursor:pointer;font-size:14px;margin-left:8px;';
@@ -386,22 +383,21 @@
                     if (confirm('确定要删除这个会话吗？')) {
                         await deleteSession(session.id);
                         if (currentSessionId === session.id) { currentSessionId = null; messageList.innerHTML = ''; updateSessionUI(null); }
-                        loadSessions();
+                        await loadSessions();
                     }
                 });
                 const itemContent = document.createElement('div');
                 itemContent.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
                 itemContent.appendChild(nameSpan);
+                itemContent.appendChild(pinBtn);
                 itemContent.appendChild(deleteBtn);
                 item.appendChild(itemContent);
-
                 item.addEventListener('click', async () => {
                     const data = await getSession(session.id);
                     if (data) {
                         currentSessionId = session.id;
                         messageList.innerHTML = '';
                         if (data.messages && data.messages.length > 0) {
-                            // 强制排序：用户消息在前，AI消息在后
                             const sortedMessages = [...data.messages].sort((a, b) => {
                                 if (a.role === 'user' && b.role === 'assistant') return -1;
                                 if (a.role === 'assistant' && b.role === 'user') return 1;
@@ -414,7 +410,7 @@
                         rulesInput.value = data.extra_rules || defaultRules;
                         displayRules(data.extra_rules || defaultRules);
                         updateSessionUI(session.id);
-                        loadSessions();
+                        await loadSessions();
                     }
                 });
                 recordList.appendChild(item);
@@ -422,17 +418,46 @@
         }
 
         newGameBtn.addEventListener('click', async () => {
-            newGameBtn.disabled = true;
-            newGameBtn.textContent = '⏳ 创建中…';
+            newGameBtn.disabled = true; newGameBtn.textContent = '⏳ 创建中…';
             await createSession();
-            newGameBtn.textContent = '🎮 新建会话';
-            newGameBtn.disabled = false;
+            newGameBtn.textContent = '🎮 新建会话'; newGameBtn.disabled = false;
         });
-
         sendBtn.addEventListener('click', () => { const content = msgInput.value.trim(); if (content) sendMessageStream(content); });
         updateRulesBtn.addEventListener('click', updateRules);
         msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } });
         msgInput.addEventListener('input', () => { msgInput.style.height = 'auto'; msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px'; });
+
+        const micBtn = document.getElementById('micBtn');
+        let isRecording = false;
+        let recognition = null;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-CN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                msgInput.value = transcript;
+                msgInput.focus();
+                msgInput.style.height = 'auto';
+                msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+            };
+            recognition.onend = () => { isRecording = false; micBtn.classList.remove('recording'); micBtn.textContent = '🎤'; };
+            recognition.onerror = (event) => { console.error('语音识别错误:', event.error); isRecording = false; micBtn.classList.remove('recording'); micBtn.textContent = '🎤'; showNotification('语音识别失败，请重试', 'error'); };
+        } else {
+            micBtn.disabled = true;
+            micBtn.title = '当前浏览器不支持语音输入';
+            showNotification('当前浏览器不支持语音输入，请使用 Chrome 或 Edge', 'info');
+        }
+        micBtn.addEventListener('click', () => {
+            if (!recognition) return;
+            if (isRecording) { recognition.stop(); }
+            else {
+                try { recognition.start(); isRecording = true; micBtn.classList.add('recording'); micBtn.textContent = '🔴'; showNotification('正在听...请说话', 'info'); }
+                catch (error) { console.error('语音识别启动失败:', error); showNotification('语音识别启动失败，请重试', 'error'); }
+            }
+        });
 
         async function init() {
             document.getElementById('welcomeTime').textContent = getFullTime();
