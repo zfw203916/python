@@ -29,6 +29,11 @@ dependencies = [
     "pgvector>=0.5.0",
     "python-multipart>=0.0.32",
     "aiohttp>=3.14.3",
+    "pypdf>=6.16.2",
+    "pdfplumber>=0.11.10",
+    "python-docx>=1.2.0",
+    "loguru>=0.7.3",
+    "passlib[bcrypt]>=1.7.4",
 ]
 
 [dependency-groups]

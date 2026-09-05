@@ -29,7 +29,16 @@
         .message.user { align-self: flex-end; flex-direction: row-reverse; }
         .message .avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; background: #eef2ff; }
         .message.user .avatar { background: #667eea; color: white; }
-        .message .bubble { padding: 12px 16px; border-radius: 16px; font-size: 15px; line-height: 1.6; word-break: break-word; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .message .bubble {
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.8;
+            word-break: break-word;
+            background: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            white-space: pre-wrap;
+        }
         .message.user .bubble { background: #667eea; color: white; border-bottom-right-radius: 4px; }
         .message.assistant .bubble { background: white; border-bottom-left-radius: 4px; }
         .message .time-tag { font-size: 11px; color: #bbb; margin-top: 4px; display: block; }
@@ -84,6 +93,31 @@
         @media (max-width: 1024px) { .right-panel { width: 240px; min-width: 240px; } }
         @media (max-width: 768px) { .sidebar { display: none; } .app { height: 100vh; max-height: 100vh; border-radius: 0; padding: 0; } .header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; } .messages { padding: 12px 16px; } .input-area { padding: 12px 16px; flex-wrap: wrap; } .input-area .input-wrapper { flex-wrap: wrap; } .input-area textarea { min-height: 40px; font-size: 14px; } .input-area .btn { padding: 10px 18px; font-size: 14px; height: 44px; } .message { max-width: 95%; } .right-panel { width: 200px; min-width: 200px; } }
         @media (max-width: 576px) { .right-panel { display: none; } .app { flex-direction: column; } .main { height: 100%; } }
+        .typing-indicator {
+            display: inline-block;
+            width: 20px;
+            text-align: left;
+        }
+        .typing-indicator span {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #667eea;
+            margin: 0 2px;
+            animation: typing 1.4s infinite both;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0% { opacity: 0.2; transform: translateY(0); }
+            50% { opacity: 1; transform: translateY(-4px); }
+            100% { opacity: 0.2; transform: translateY(0); }
+        }
+        .message .bubble.thinking {
+            color: #999;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -158,6 +192,7 @@
 
         const defaultRules = `1、每次只回1条消息\n2、禁止任何场景或状态描述性文字\n3、匹配用户的语言\n4、回复简短，像微信聊天一样\n5、有需要的话可以用🩷 💞等emoji表情\n6、用符合伴侣性格的方式对话\n7、回复的内容，要充分体现伴侣的性格特征`;
         let currentSessionId = null;
+        let isStreaming = false;
 
         let searchTimer = null;
         searchInput.addEventListener('input', () => {
@@ -167,7 +202,6 @@
 
         async function handleSearch(query) {
             if (!query) {
-                // 如果清空了搜索框，直接加载全部会话
                 await loadSessions();
                 return;
             }
@@ -188,14 +222,56 @@
             return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
         }
 
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatMessageContent(content) {
+            if (!content) return '';
+            return escapeHtml(content).replace(/\n/g, '<br>');
+        }
+
         function addMessage(role, content) {
             const isUser = role === 'user';
             const avatar = isUser ? '👤' : '🤖';
             const div = document.createElement('div');
             div.className = `message ${role}`;
-            div.innerHTML = `<div class="avatar">${avatar}</div><div><div class="bubble">${content}</div><span class="time-tag">${getFullTime()}</span></div>`;
+            div.innerHTML = `
+                <div class="avatar">${avatar}</div>
+                <div>
+                    <div class="bubble">${formatMessageContent(content)}</div>
+                    <span class="time-tag">${getFullTime()}</span>
+                </div>
+            `;
             messageList.appendChild(div);
             messageList.scrollTop = messageList.scrollHeight;
+            return div;
+        }
+
+        function addThinkingMessage() {
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.id = 'thinking-message';
+            div.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div>
+                    <div class="bubble thinking">🤔 思考中<span class="typing-indicator"><span></span><span></span><span></span></span></div>
+                    <span class="time-tag">${getFullTime()}</span>
+                </div>
+            `;
+            messageList.appendChild(div);
+            messageList.scrollTop = messageList.scrollHeight;
+            return div;
+        }
+
+        function removeThinkingMessage() {
+            const thinkingEl = document.getElementById('thinking-message');
+            if (thinkingEl) {
+                thinkingEl.remove();
+            }
         }
 
         function setStatus(text, type = 'online') {
@@ -294,55 +370,119 @@
 
         async function sendMessageStream(content) {
             if (!currentSessionId) { addMessage('assistant', '⚠️ 请先点击「新建会话」创建会话'); return; }
-            if (sendBtn.disabled) { showNotification('请等待AI回复完成后再发送消息', 'info'); return; }
+            if (sendBtn.disabled || isStreaming) { showNotification('请等待AI回复完成后再发送消息', 'info'); return; }
+            
             addMessage('user', content);
             msgInput.value = '';
             sendBtn.disabled = true;
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message assistant';
-            messageDiv.innerHTML = `<div class="avatar">🤖</div><div><div class="bubble" id="ai-response">思考中...</div><span class="time-tag"></span></div>`;
-            messageList.appendChild(messageDiv);
-            messageList.scrollTop = messageList.scrollHeight;
+            isStreaming = true;
+            
+            // 显示思考中
+            const thinkingDiv = addThinkingMessage();
+            
             let fullResponse = '';
+            let hasContent = false;
+            
             try {
                 const response = await fetch(`${API_BASE}/api/chat/stream`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: content, session_id: currentSessionId })
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content, session_id: currentSessionId })
                 });
+                
                 if (!response.ok) throw new Error('Stream request failed');
+                
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
+                
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
+                    
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split('\n\n');
                     buffer = lines.pop() || '';
+                    
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
                             const data = line.slice(6);
                             if (data === '[DONE]') continue;
+                            
                             try {
                                 const chunk = JSON.parse(data);
-                                if (chunk.type === 'chunk') { fullResponse += chunk.content || ''; document.getElementById('ai-response').textContent = fullResponse; messageList.scrollTop = messageList.scrollHeight; }
-                                else if (chunk.type === 'complete') { fullResponse = chunk.full_response; document.getElementById('ai-response').textContent = fullResponse; if (chunk.session_id) currentSessionId = chunk.session_id; loadSessions(); }
+                                
+                                if (chunk.type === 'chunk') {
+                                    // 第一次收到内容时，移除思考中
+                                    if (!hasContent) {
+                                        removeThinkingMessage();
+                                        hasContent = true;
+                                    }
+                                    fullResponse += chunk.content || '';
+                                    // 更新或创建消息
+                                    let responseDiv = document.getElementById('ai-response-live');
+                                    if (!responseDiv) {
+                                        const newDiv = document.createElement('div');
+                                        newDiv.className = 'message assistant';
+                                        newDiv.id = 'ai-message-live';
+                                        newDiv.innerHTML = `
+                                            <div class="avatar">🤖</div>
+                                            <div>
+                                                <div class="bubble" id="ai-response-live"></div>
+                                                <span class="time-tag">${getFullTime()}</span>
+                                            </div>
+                                        `;
+                                        messageList.appendChild(newDiv);
+                                        responseDiv = document.getElementById('ai-response-live');
+                                    }
+                                    if (responseDiv) {
+                                        responseDiv.innerHTML = formatMessageContent(fullResponse);
+                                        messageList.scrollTop = messageList.scrollHeight;
+                                    }
+                                }
+                                else if (chunk.type === 'complete') {
+                                    fullResponse = chunk.full_response;
+                                    // 移除思考中（如果还在）
+                                    removeThinkingMessage();
+                                    // 移除流式消息（如果有）
+                                    const liveMsg = document.getElementById('ai-message-live');
+                                    if (liveMsg) {
+                                        liveMsg.remove();
+                                    }
+                                    // 添加最终消息
+                                    addMessage('assistant', fullResponse);
+                                    if (chunk.session_id) currentSessionId = chunk.session_id;
+                                    await loadSessions();
+                                }
                             } catch (e) { console.error('Error parsing chunk:', e); }
                         }
                     }
                 }
+                
+                // 如果流结束但没有任何内容，移除思考中并显示空消息
+                if (!hasContent) {
+                    removeThinkingMessage();
+                    if (fullResponse) {
+                        addMessage('assistant', fullResponse);
+                    } else {
+                        addMessage('assistant', '（AI没有返回任何内容）');
+                    }
+                }
+                
             } catch (error) {
                 console.error('Error in stream:', error);
-                document.getElementById('ai-response').textContent = '❌ 发生错误: ' + error.message;
+                removeThinkingMessage();
+                addMessage('assistant', '❌ 发生错误: ' + error.message);
             }
-            sendBtn.disabled = false; msgInput.focus();
+            
+            sendBtn.disabled = false;
+            isStreaming = false;
+            msgInput.focus();
         }
 
         async function loadSessions() {
-             // 🟢 1. 强制清空搜索框，防止残留搜索状态影响显示
             searchInput.value = '';
-            // 🟢 2. 强制从后端拉取最新的全部会话
             const sessions = await fetchSessions();
-            // 🟢 3. 重新渲染列表，后端返回什么，前端就显示什么
             renderSessionList(sessions);
         }
 
@@ -398,13 +538,12 @@
                         currentSessionId = session.id;
                         messageList.innerHTML = '';
                         if (data.messages && data.messages.length > 0) {
-                            const sortedMessages = [...data.messages].sort((a, b) => {
-                                if (a.role === 'user' && b.role === 'assistant') return -1;
-                                if (a.role === 'assistant' && b.role === 'user') return 1;
-                                return 0;
-                            });
-                            for (const msg of sortedMessages) addMessage(msg.role, msg.content);
-                        } else { addMessage('assistant', '这个会话还没有消息，开始对话吧！'); }
+                            for (const msg of data.messages) {
+                                addMessage(msg.role, msg.content);
+                            }
+                        } else { 
+                            addMessage('assistant', '这个会话还没有消息，开始对话吧！'); 
+                        }
                         aiName.value = data.nick_name;
                         aiPersonality.value = data.nature;
                         rulesInput.value = data.extra_rules || defaultRules;
@@ -422,7 +561,7 @@
             await createSession();
             newGameBtn.textContent = '🎮 新建会话'; newGameBtn.disabled = false;
         });
-        sendBtn.addEventListener('click', () => { const content = msgInput.value.trim(); if (content) sendMessageStream(content); });
+        sendBtn.addEventListener('click', () => { const content = msgInput.value.trim(); if (content && !isStreaming) sendMessageStream(content); });
         updateRulesBtn.addEventListener('click', updateRules);
         msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } });
         msgInput.addEventListener('input', () => { msgInput.style.height = 'auto'; msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px'; });
@@ -471,12 +610,9 @@
                     currentSessionId = sessions[0].id;
                     messageList.innerHTML = '';
                     if (data.messages && data.messages.length > 0) {
-                        const sortedMessages = [...data.messages].sort((a, b) => {
-                            if (a.role === 'user' && b.role === 'assistant') return -1;
-                            if (a.role === 'assistant' && b.role === 'user') return 1;
-                            return 0;
-                        });
-                        for (const msg of sortedMessages) addMessage(msg.role, msg.content);
+                        for (const msg of data.messages) {
+                            addMessage(msg.role, msg.content);
+                        }
                     }
                     aiName.value = data.nick_name;
                     aiPersonality.value = data.nature;

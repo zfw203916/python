@@ -1,4 +1,4 @@
-import os
+import os, sys
 from openai import OpenAI
 from datetime import datetime
 from typing import List, Dict
@@ -7,19 +7,43 @@ from ..database import SessionModel, SessionLocal
 from .vector_service import VectorService
 from dotenv import load_dotenv
 from pathlib import Path
+from sqlalchemy.orm import Session 
 
+load_dotenv()
 
 # 指定 .env 文件路径（项目根目录）
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
+RAG_TOP_K = int(os.environ.get('RAG_TOP_K', 5))
+RAG_THRESHOLD = float(os.environ.get('RAG_THRESHOLD', 0.5))
 
+# 添加知识库模块到路径
+kb_path = Path(__file__).parent.parent.parent / "knowledge_simple"
+sys.path.insert(0, str(kb_path))
+# ============ 🆕 导入知识库服务 ============
+#from ...knowledge_simple.services.document_service import DocumentService
+# 使用绝对路径导入，更稳定可靠
+from src.framework.ai.knowledge_simple.services.document_service import DocumentService
+from src.framework.ai.knowledge_simple.database import KnowledgeChunk, KnowledgeDocument
 
+db = SessionLocal()
+doc_count = db.query(KnowledgeDocument).count()
+chunk_count = db.query(KnowledgeChunk).count()
+print(f"文档数量: {doc_count}")
+print(f"分块数量: {chunk_count}")
+
+# ================================================
 class ChatService:
     def __init__(self):
         self.api_key = os.environ.get("APP_DEEPSEEK_API_KEY")
         self.base_url = os.environ.get("APP_DEEPSEEK_URL")
         self.model = os.environ.get("APP_DEEPSEEK_MODEL")
         self.vector_service = VectorService()
+
+        # 初始化知识库服务，并配置是否启用
+        self.kb_service = DocumentService()
+        self.enable_rag = os.environ.get("ENABLE_RAG","true").lower() == "true"
+
         if self.api_key:
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         else:
@@ -46,6 +70,10 @@ class ChatService:
             {rules}
             伴侣性格：
             - {nature}
+            【重要】当用户询问关于文档、书籍、故事等内容时，你必须基于【参考信息】中的内容来回答。
+            如果【参考信息】中有相关内容，请直接引用并回答。
+            如果【参考信息】中没有相关内容，请礼貌地告诉用户。
+
             你必须严格遵守上述规则来回复用户。
         """
 
@@ -54,6 +82,9 @@ class ChatService:
         if not self.client:
             raise ValueError("OpenAI client not initialized")
 
+        # 🆕 添加调试日志
+        print(f"🔍 RAG 状态: enable_rag={self.enable_rag}")
+        print(f"🔍 kb_service 状态: {self.kb_service}")
         # 获取会话信息
         db = SessionLocal()
         try:
@@ -107,10 +138,35 @@ class ChatService:
             )
             current_message_id = str(saved_message.id) if saved_message else None
 
-            # ===== 5. RAG检索增强 =====
-            rag_context = ""
+            #原有的向量检索
             if self.vector_service.enable_rag:
-                # 检索相似历史消息
+                rag_parts = []
+                # 检索相似历史消息,检索历史对话（保留，但减少数量避免重复）
+                try:
+                   
+                    kb_results = self.kb_service.search_similar(
+                        db,
+                        user_message,
+                        top_k =  RAG_TOP_K,
+                        threshold = RAG_THRESHOLD,
+                    )
+                    if kb_results:
+                        print(f"📚 知识库检索到{len(kb_results)}条内容")
+                        for chunk, similarity in kb_results:
+                            # 获取文档标题
+                            doc_title = "未知文档"
+                            try:
+                                from ...knowledge_simple.database import KnowledgeDocument
+                                doc = db.query(KnowledgeDocument).filter(KnowledgeDocument.id == chunk.document_id).first()
+                                if doc:
+                                    doc_title = doc.title
+                            except Exception as e:
+                                pass
+                            rag_parts.append(f"[📄 {doc_title}]: {chunk.content}")
+                            print(f"  相似度: {similarity:.3f} | {chunk.content[:30]}...")
+
+                except Exception as e:
+                    print(f"⚠️ 知识库检索失败: {e}")
                 similar_messages = self.vector_service.search_similar_messages(
                     db,
                     user_message,
@@ -120,21 +176,43 @@ class ChatService:
                     limit=self.vector_service.rag_top_k,
                     threshold=self.vector_service.rag_threshold,
                 )
+                
+                # 2. 检索历史对话（保留，但减少数量避免重复）
                 if similar_messages:
-                    # 构建RAG上下文
-                    rag_parts = []
+                    print(f"🔍 第一条: {similar_messages[0]['content'][:50]}...")
+                    # 构建RAG上下文 
                     for msg in similar_messages:
                         role = "用户" if msg["role"] == "user" else session.nick_name
                         rag_parts.append(f"[{role}]:{msg['content']}")
                     rag_context = "\n\n【参考历史对话】\n" + "\n".join(rag_parts)
                     # 注入到系统提示中
                     system_str = system_str + rag_context
-                    # 🟢 调试日志
+                    # 调试日志
                     print(f"🔍 RAG召回{len(similar_messages)}条相似消息 ")
                     for msg in similar_messages:
                         print(
                             f"  相似度:{msg['similarity']:.3f} | {msg['content'][:30]}..."
                         )
+                else:
+                    print(f"⚠️ RAG 没有检索到相关内容")
+
+                # 构建RAG上下文（合并知识库 + 历史对话）
+                if rag_parts:
+                    #rag_context = "\n\n【参考信息】\n" + "\n".join(rag_parts)
+                    # 更清晰的格式
+                    rag_context = "\n\n【参考信息 - 请基于以下内容回答】\n" + "\n---\n".join(rag_parts)
+                    system_str = system_str + rag_context
+                    print(f"🔍 RAG共召回 {len(rag_parts)} 条参考信息")
+
+                    # 🆕 打印完整的 system prompt 前500个字符
+                    """
+                    print(f"📝 System Prompt 预览 (前500字符):")
+                    print(system_str[:500])
+                    print("...")
+                    """
+
+                else:
+                     print(f"⚠️ RAG 没有检索到任何相关内容")
 
             # ===== 6. 准备API请求 =====
             api_messages = [{"role": "system", "content": system_str}, *messages]

@@ -335,7 +335,6 @@ yarn.lock
 data/
 raw_data/
 processed_data/
-models/
 *.h5
 *.pb
 *.onnx
