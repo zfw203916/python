@@ -10,13 +10,11 @@ from pathlib import Path
 from sqlalchemy.orm import Session 
 
 load_dotenv()
-
 # 指定 .env 文件路径（项目根目录）
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 RAG_TOP_K = int(os.environ.get('RAG_TOP_K', 5))
 RAG_THRESHOLD = float(os.environ.get('RAG_THRESHOLD', 0.5))
-
 # 添加知识库模块到路径
 kb_path = Path(__file__).parent.parent.parent / "knowledge_simple"
 sys.path.insert(0, str(kb_path))
