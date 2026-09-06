@@ -382,6 +382,9 @@
             
             let fullResponse = '';
             let hasContent = false;
+            //标记是否有流式消息
+            let hasLiveMessage = false; 
+            let isComplete = false;
             
             try {
                 const response = await fetch(`${API_BASE}/api/chat/stream`, {
@@ -422,6 +425,8 @@
                                     // 更新或创建消息
                                     let responseDiv = document.getElementById('ai-response-live');
                                     if (!responseDiv) {
+                                        //标记已有流式消息
+                                        hasLiveMessage = true; 
                                         const newDiv = document.createElement('div');
                                         newDiv.className = 'message assistant';
                                         newDiv.id = 'ai-message-live';
@@ -441,13 +446,22 @@
                                     }
                                 }
                                 else if (chunk.type === 'complete') {
+                                    console.log('📦 收到 complete，当前 isComplete =', isComplete);  // 🆕 加这行
+                                    //如果已经处理过 complete，直接跳过
+                                    if (isComplete) {
+                                        continue;
+                                    }
+                                    isComplete = true;  // 标记已处理
                                     fullResponse = chunk.full_response;
                                     // 移除思考中（如果还在）
                                     removeThinkingMessage();
-                                    // 移除流式消息（如果有）
-                                    const liveMsg = document.getElementById('ai-message-live');
-                                    if (liveMsg) {
-                                        liveMsg.remove();
+                                    //只有存在流式消息时才移除
+                                    if (hasLiveMessage) {  // ← 加这个判断
+                                        const liveMsg = document.getElementById('ai-message-live');
+                                        if (liveMsg) {
+                                            liveMsg.remove();
+                                        }
+                                        hasLiveMessage = false;  // ← 重置标志
                                     }
                                     // 添加最终消息
                                     addMessage('assistant', fullResponse);

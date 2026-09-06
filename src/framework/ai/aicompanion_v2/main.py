@@ -14,6 +14,8 @@ from ..knowledge_simple.database import init_db as init_kb_db
 from ..knowledge_simple.routers.documents import router as documents_router
 from ..knowledge_simple.routers.search import router as search_router
 
+# ========== 导入 Agent（ ==========
+from ..agent.weather.core.router import router as agent_router
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -47,6 +49,9 @@ app.include_router(chat)
 app.include_router(documents_router)
 app.include_router(search_router)
 
+# ========== 工具集路由 ==========
+app.include_router(agent_router)
+
 # 静态文件服务
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
@@ -73,7 +78,7 @@ async def health_check():
     return {"status": "healthy"}
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": 
     import uvicorn
     uvicorn.run(
         "main:app", 
@@ -81,5 +86,10 @@ if __name__ == "__main__":
         port=8000, 
         reload=True,
         reload_dirs = ["src", "."],
-        reload_includes=["*.py", "*.env"]
-    )
+        reload_includes=[
+            "*.py", 
+            "*.env",
+            ".env"   # 有些系统把 .env 当作隐藏文件
+        ],
+        
+    ) 

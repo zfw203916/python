@@ -1,3 +1,4 @@
+# src/framework/ai/aicompanion_v2/services/chat_service.py
 import os, sys
 from openai import OpenAI
 from datetime import datetime
@@ -8,6 +9,11 @@ from .vector_service import VectorService
 from dotenv import load_dotenv
 from pathlib import Path
 from sqlalchemy.orm import Session 
+from typing import Optional
+
+# 🟢 导入 Agent
+from ...agent.weather.core.agent import smart_agent
+
 
 load_dotenv()
 # 指定 .env 文件路径（项目根目录）
@@ -19,8 +25,6 @@ RAG_THRESHOLD = float(os.environ.get('RAG_THRESHOLD', 0.5))
 kb_path = Path(__file__).parent.parent.parent / "knowledge_simple"
 sys.path.insert(0, str(kb_path))
 # ============ 🆕 导入知识库服务 ============
-#from ...knowledge_simple.services.document_service import DocumentService
-# 使用绝对路径导入，更稳定可靠
 from src.framework.ai.knowledge_simple.services.document_service import DocumentService
 from src.framework.ai.knowledge_simple.database import KnowledgeChunk, KnowledgeDocument
 
@@ -75,160 +79,144 @@ class ChatService:
             你必须严格遵守上述规则来回复用户。
         """
 
+    def _get_or_create_session(self, db: Session, session_id: str) -> SessionModel:
+        """获取或创建会话"""
+        session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+        if not session:
+            session_name = datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
+            session = SessionModel(
+                id=session_id,
+                session_name=session_name,
+                nick_name="小甜甜",
+                nature="活泼开朗的台湾姑娘",
+                extra_rules="",
+                system_str="",
+                messages=[],
+            )
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+        return session
+
     def chat(self, session_id: str, user_message: str, stream: bool = True):
-        """处理聊天请求"""
+        """处理聊天请求 - 集成 Agent 工具"""
         if not self.client:
             raise ValueError("OpenAI client not initialized")
 
-        # 🆕 添加调试日志
         print(f"🔍 RAG 状态: enable_rag={self.enable_rag}")
         print(f"🔍 kb_service 状态: {self.kb_service}")
-        # 获取会话信息
+        
         db = SessionLocal()
         try:
             # ===== 1. 获取或创建会话 =====
-            session = (
-                db.query(SessionModel).filter(SessionModel.id == session_id).first()
-            )
-            if not session:
-                # 创建新会话
-                session_name = (
-                    datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
-                )
-                session = SessionModel(
-                    id=session_id,
-                    session_name=session_name,
-                    nick_name="小甜甜",
-                    nature="活泼开朗的台湾姑娘",
-                    extra_rules="",
-                    system_str="",
-                    messages=[],
-                )
-                db.add(session)
-                db.commit()
-                db.refresh(session)
-
-            # 保存消息向量（如果支持），这个新增功能。貌似deepseek不支持这个字段，只有openAI支持。
-            # 在 chat 方法中，准备 API 请求消息之前添加
-            # === 新增：RAG检索增强 ===
-            # 检索相似历史消息（当前会话 + 全局）
-
+            session = self._get_or_create_session(db, session_id)
+            
             # ===== 2. 生成系统提示 =====
             system_str = self.get_system_prompt(
                 session.nick_name,
                 session.nature,
                 session.extra_rules if hasattr(session, "extra_rules") else "",
             )
-            session.system_str = system_str
-
-            # ===== 3. 添加用户消息 =====
+            
+            # ===== 3. 🟢 让 Agent 判断是否需要工具 =====
+            agent_result = None
+            use_agent = smart_agent.should_use_tools(user_message)
+            print(f"🤖 Agent 判断结果: use_agent={use_agent}")
+            
+            if use_agent:
+                print(f"🔧 Agent 调用工具: {user_message}")
+                agent_result = smart_agent.run(user_message)
+                print(f"✅ Agent 返回: {agent_result[:50]}...")
+                # 把工具结果注入 system_prompt
+                system_str += f"\n\n【工具调用结果】\n{agent_result}\n请基于以上工具结果回答用户。"
+            
+            # ===== 4. 保存用户消息 =====
             messages = session.messages or []
             messages.append({"role": "user", "content": user_message})
-
-            # 保存用户消息到数据库
             session.messages = messages
-            db.commit()
-            db.refresh(session)
-
-            # ===== 4. 保存用户消息向量=====
+            
+            # ===== 5. 保存用户消息向量 =====
             saved_message = self.vector_service.save_message_with_embedding(
                 db, str(session_id), "user", user_message
             )
             current_message_id = str(saved_message.id) if saved_message else None
 
-            #原有的向量检索
+            # ===== 6. RAG 知识库检索 =====
             if self.vector_service.enable_rag:
                 rag_parts = []
-                # 检索相似历史消息,检索历史对话（保留，但减少数量避免重复）
                 try:
-                   
                     kb_results = self.kb_service.search_similar(
                         db,
                         user_message,
-                        top_k =  RAG_TOP_K,
-                        threshold = RAG_THRESHOLD,
+                        top_k=RAG_TOP_K,
+                        threshold=RAG_THRESHOLD,
                     )
                     if kb_results:
                         print(f"📚 知识库检索到{len(kb_results)}条内容")
                         for chunk, similarity in kb_results:
-                            # 获取文档标题
                             doc_title = "未知文档"
                             try:
                                 from ...knowledge_simple.database import KnowledgeDocument
-                                doc = db.query(KnowledgeDocument).filter(KnowledgeDocument.id == chunk.document_id).first()
+                                doc = db.query(KnowledgeDocument).filter(
+                                    KnowledgeDocument.id == chunk.document_id
+                                ).first()
                                 if doc:
                                     doc_title = doc.title
                             except Exception as e:
                                 pass
                             rag_parts.append(f"[📄 {doc_title}]: {chunk.content}")
                             print(f"  相似度: {similarity:.3f} | {chunk.content[:30]}...")
-
                 except Exception as e:
                     print(f"⚠️ 知识库检索失败: {e}")
+                
                 similar_messages = self.vector_service.search_similar_messages(
                     db,
                     user_message,
-                    # session_id=str(session_id),
-                    session_id=None,  # ← 关键修复：None = 跨会话检索
+                    session_id=None,
                     exclude_id=current_message_id,
                     limit=self.vector_service.rag_top_k,
                     threshold=self.vector_service.rag_threshold,
                 )
                 
-                # 2. 检索历史对话（保留，但减少数量避免重复）
                 if similar_messages:
                     print(f"🔍 第一条: {similar_messages[0]['content'][:50]}...")
-                    # 构建RAG上下文 
                     for msg in similar_messages:
                         role = "用户" if msg["role"] == "user" else session.nick_name
                         rag_parts.append(f"[{role}]:{msg['content']}")
                     rag_context = "\n\n【参考历史对话】\n" + "\n".join(rag_parts)
-                    # 注入到系统提示中
                     system_str = system_str + rag_context
-                    # 调试日志
                     print(f"🔍 RAG召回{len(similar_messages)}条相似消息 ")
                     for msg in similar_messages:
-                        print(
-                            f"  相似度:{msg['similarity']:.3f} | {msg['content'][:30]}..."
-                        )
+                        print(f"  相似度:{msg['similarity']:.3f} | {msg['content'][:30]}...")
                 else:
                     print(f"⚠️ RAG 没有检索到相关内容")
 
-                # 构建RAG上下文（合并知识库 + 历史对话）
                 if rag_parts:
-                    #rag_context = "\n\n【参考信息】\n" + "\n".join(rag_parts)
-                    # 更清晰的格式
                     rag_context = "\n\n【参考信息 - 请基于以下内容回答】\n" + "\n---\n".join(rag_parts)
                     system_str = system_str + rag_context
                     print(f"🔍 RAG共召回 {len(rag_parts)} 条参考信息")
-
-                    # 🆕 打印完整的 system prompt 前500个字符
-                    """
-                    print(f"📝 System Prompt 预览 (前500字符):")
-                    print(system_str[:500])
-                    print("...")
-                    """
-
                 else:
-                     print(f"⚠️ RAG 没有检索到任何相关内容")
-
-            # ===== 6. 准备API请求 =====
+                    print(f"⚠️ RAG 没有检索到任何相关内容")
+            
+            # ===== 7. 提交数据库 =====
+            db.commit()
+            db.refresh(session)
+            
+            # ===== 8. 准备 API 请求 =====
             api_messages = [{"role": "system", "content": system_str}, *messages]
 
-            # ===== 7. 调用LLM =====
+            # ===== 9. 调用 LLM =====
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=api_messages,
                 stream=stream,
             )
 
-            # 保存session_id用于后续处理
             session_id_str = str(session.id)
             nick_name = session.nick_name
             nature = session.nature
             extra_rules = session.extra_rules
 
-            # 关闭数据库会话，因为流式响应可能会持续很长时间
             db.close()
 
             if stream:
@@ -236,12 +224,12 @@ class ChatService:
                     session_id_str, messages, response, nick_name, nature, extra_rules
                 )
             else:
-                # 非流式响应，需要重新打开数据库会话
                 return self._handle_non_stream_response(
                     session_id_str, messages, response, nick_name, nature, extra_rules
                 )
 
         except Exception as e:
+            db.rollback()
             db.close()
             raise e
 
@@ -271,28 +259,19 @@ class ChatService:
                         "type": "chunk",
                         "content": delta.content,
                         "full_response": full_response,
-                        # "thinking": thinking_content,
                     }
 
-        # 流结束后，保存完整的响应到数据库
         messages.append({"role": "assistant", "content": full_response})
 
-        # 重新打开数据库会话保存数据
         db = SessionLocal()
         try:
-            session = (
-                db.query(SessionModel).filter(SessionModel.id == session_id).first()
-            )
+            session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
             if session:
                 session.messages = messages
-                # ==================== 🆕 新增：AI自动总结标题 ====================
-                # 缺点：会额外消耗一次 API 调用。
                 if session.session_name.startswith("20") and len(messages) >= 2:
-                    # 提取最近的消息用于总结（比如前2条）
                     try:
                         summary_input = messages[:4]
                         summary_prompt = f"请根据以下对话，用不超过8个字总结核心主题，不要加标点，不要带引号：\n{summary_input}"
-                        # 调用大模型总结LLM
                         summary_resp = self.client.chat.completions.create(
                             model=self.model,
                             messages=[{"role": "user", "content": summary_prompt}],
@@ -300,18 +279,14 @@ class ChatService:
                             temperature=0.3,
                         )
                         new_title = summary_resp.choices[0].message.content.strip()
-
-                        # 如果总结成功且非空，更新标题
                         if new_title and len(new_title) <= 15:
                             session.session_name = new_title
                     except Exception as summary_error:
-                        # 总结失败不要紧，保持原标题（日期），不报错
                         print(f"⚠️ 自动总结标题失败，保留原标题: {summary_error}")
 
                 db.commit()
                 db.refresh(session)
 
-                # 保存助手消息向量
                 self.vector_service.save_message_with_embedding(
                     db, session_id, "assistant", full_response
                 )
@@ -321,7 +296,6 @@ class ChatService:
         yield {
             "type": "complete",
             "full_response": full_response,
-            # "thinking": thinking_content,
             "session_id": session_id,
         }
 
@@ -338,22 +312,15 @@ class ChatService:
         ai_response = response.choices[0].message.content
         messages.append({"role": "assistant", "content": ai_response})
 
-        # 保存到数据库
         db = SessionLocal()
         try:
-            session = (
-                db.query(SessionModel).filter(SessionModel.id == session_id).first()
-            )
+            session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
             if session:
                 session.messages = messages
-                # ==================== 🆕 新增：AI自动总结标题 ====================
-                # 缺点：会额外消耗一次 API 调用。
                 if session.session_name.startswith("20") and len(messages) >= 2:
-                    # 提取最近的消息用于总结（比如前2条）
                     try:
                         summary_input = messages[:4]
                         summary_prompt = f"请根据以下对话，用不超过8个字总结核心主题，不要加标点，不要带引号：\n{summary_input}"
-                        # 调用大模型总结LLM
                         summary_resp = self.client.chat.completions.create(
                             model=self.model,
                             messages=[{"role": "user", "content": summary_prompt}],
@@ -361,17 +328,13 @@ class ChatService:
                             temperature=0.3,
                         )
                         new_title = summary_resp.choices[0].message.content.strip()
-
-                        # 如果总结成功且非空，更新标题
                         if new_title and len(new_title) <= 15:
                             session.session_name = new_title
                     except Exception as summary_error:
-                        # 总结失败不要紧，保持原标题（日期），不报错
                         print(f"⚠️ 自动总结标题失败，保留原标题: {summary_error}")
                 db.commit()
                 db.refresh(session)
 
-                # 保存助手消息向量
                 self.vector_service.save_message_with_embedding(
                     db, session_id, "assistant", ai_response
                 )
@@ -384,9 +347,7 @@ class ChatService:
         """创建新会话"""
         db = SessionLocal()
         try:
-            session_name = (
-                datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
-            )
+            session_name = datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
             session_id = uuid.uuid4()
             system_str = self.get_system_prompt(nick_name, nature, extra_rules)
 

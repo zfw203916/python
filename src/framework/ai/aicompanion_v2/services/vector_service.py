@@ -108,7 +108,7 @@ class VectorService:
                     "limit": limit,
                 },
             )
-            # ✅ 先转成字典列表
+            # 先转成字典列表
             results = [
                 {
                     "id": row[0],

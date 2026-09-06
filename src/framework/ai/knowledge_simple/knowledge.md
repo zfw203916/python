@@ -125,3 +125,18 @@ API 文档	http://localhost:8000/docs
 ReDoc 文档	http://localhost:8000/redoc
 OpenAPI JSON	http://localhost:8000/openapi.json
 根路径	http://localhost:8000/ (会显示API信息)
+
+
+
+七、后续可扩展功能
+多轮对话优化 - 更好的上下文管理
+
+知识库版本管理 - 文档更新追踪
+
+用户认证系统 - 多用户隔离
+
+对话导出 - 导出为 Markdown/PDF
+
+批量文档上传 - 支持文件夹上传
+
+知识库统计 - 文档数、检索次数等
