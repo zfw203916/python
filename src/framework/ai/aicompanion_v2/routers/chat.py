@@ -4,7 +4,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from ..models import MessageRequest
 from ..services.chat_service import ChatService
-import json, uuid
+import json
+import uuid
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 chat_service = ChatService()
@@ -14,9 +15,15 @@ chat_service = ChatService()
 async def chat_stream(request: MessageRequest):
     """流式聊天 - 统一走 AI 伴侣"""
     session_id = request.session_id or str(uuid.uuid4())
-    
+    print(f"-----{request.nick_name}------")
     try:
-        generator = chat_service.chat(session_id, request.content, stream=True)
+        generator = chat_service.chat(
+            session_id, 
+            request.content, 
+            stream=True,
+            nick_name=request.nick_name,
+            nature=request.nature  
+        )
 
         def stream_generator():
             try:
@@ -45,7 +52,13 @@ async def chat_non_stream(request: MessageRequest):
     """非流式聊天 - 统一走 AI 伴侣"""
     session_id = request.session_id or str(uuid.uuid4())
     try:
-        result = chat_service.chat(session_id, request.content, stream=False)
+        result = chat_service.chat(
+            session_id, 
+            request.content, 
+            stream=False,
+            nick_name=request.nick_name,
+            nature=request.nature      
+        )
         return {"session_id": result["session_id"], "response": result["response"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

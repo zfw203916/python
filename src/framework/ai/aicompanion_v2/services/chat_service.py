@@ -1,5 +1,6 @@
 # src/framework/ai/aicompanion_v2/services/chat_service.py
-import os, sys
+import os
+import sys
 from openai import OpenAI
 from datetime import datetime
 from typing import List, Dict
@@ -8,8 +9,7 @@ from ..database import SessionModel, SessionLocal
 from .vector_service import VectorService
 from dotenv import load_dotenv
 from pathlib import Path
-from sqlalchemy.orm import Session 
-from typing import Optional
+from sqlalchemy.orm import Session
 
 # 🟢 导入 Agent
 from ...agent.weather.core.agent import smart_agent
@@ -19,8 +19,8 @@ load_dotenv()
 # 指定 .env 文件路径（项目根目录）
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
-RAG_TOP_K = int(os.environ.get('RAG_TOP_K', 5))
-RAG_THRESHOLD = float(os.environ.get('RAG_THRESHOLD', 0.5))
+RAG_TOP_K = int(os.environ.get("RAG_TOP_K", 5))
+RAG_THRESHOLD = float(os.environ.get("RAG_THRESHOLD", 0.5))
 # 添加知识库模块到路径
 kb_path = Path(__file__).parent.parent.parent / "knowledge_simple"
 sys.path.insert(0, str(kb_path))
@@ -34,6 +34,7 @@ chunk_count = db.query(KnowledgeChunk).count()
 print(f"文档数量: {doc_count}")
 print(f"分块数量: {chunk_count}")
 
+
 # ================================================
 class ChatService:
     def __init__(self):
@@ -44,7 +45,7 @@ class ChatService:
 
         # 初始化知识库服务，并配置是否启用
         self.kb_service = DocumentService()
-        self.enable_rag = os.environ.get("ENABLE_RAG","true").lower() == "true"
+        self.enable_rag = os.environ.get("ENABLE_RAG", "true").lower() == "true"
 
         if self.api_key:
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
@@ -79,16 +80,20 @@ class ChatService:
             你必须严格遵守上述规则来回复用户。
         """
 
-    def _get_or_create_session(self, db: Session, session_id: str) -> SessionModel:
+    def _get_or_create_session(self, db: Session, session_id: str, nick_name: str = None, nature: str = None) -> SessionModel:
         """获取或创建会话"""
         session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
         if not session:
-            session_name = datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
+            print("📝 会话不存在，创建新会话")
+            session_name = (
+                datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
+            )
+            # 用前端传入的值，如果没有就用默认值
             session = SessionModel(
                 id=session_id,
                 session_name=session_name,
-                nick_name="小甜甜",
-                nature="活泼开朗的台湾姑娘",
+                nick_name=nick_name or "小甜甜",
+                nature=nature or "活泼开朗的台湾姑娘",
                 extra_rules="",
                 system_str="",
                 messages=[],
@@ -96,45 +101,59 @@ class ChatService:
             db.add(session)
             db.commit()
             db.refresh(session)
+        else:
+            updated = False
+            if nick_name and session.nick_name != nick_name:
+                session.nick_name = nick_name
+                updated = True
+            if nature and session.nature != nature:
+                session.nature = nature
+                updated = True
+            if updated:
+                session.system_str = self.get_system_prompt(
+                    session.nick_name, session.nature, session.extra_rules or ""
+                )
+                db.commit()
+                db.refresh(session)
         return session
 
-    def chat(self, session_id: str, user_message: str, stream: bool = True):
+    def chat(self, session_id: str, user_message: str, stream: bool = True, nick_name: str = None, nature: str = None):
         """处理聊天请求 - 集成 Agent 工具"""
         if not self.client:
             raise ValueError("OpenAI client not initialized")
 
         print(f"🔍 RAG 状态: enable_rag={self.enable_rag}")
         print(f"🔍 kb_service 状态: {self.kb_service}")
-        
+
         db = SessionLocal()
         try:
             # ===== 1. 获取或创建会话 =====
-            session = self._get_or_create_session(db, session_id)
-            
+            session = self._get_or_create_session(db, session_id, nick_name, nature)
+
             # ===== 2. 生成系统提示 =====
             system_str = self.get_system_prompt(
                 session.nick_name,
                 session.nature,
                 session.extra_rules if hasattr(session, "extra_rules") else "",
             )
-            
+
             # ===== 3. 🟢 让 Agent 判断是否需要工具 =====
             agent_result = None
             use_agent = smart_agent.should_use_tools(user_message)
             print(f"🤖 Agent 判断结果: use_agent={use_agent}")
-            
+
             if use_agent:
                 print(f"🔧 Agent 调用工具: {user_message}")
                 agent_result = smart_agent.run(user_message)
                 print(f"✅ Agent 返回: {agent_result[:50]}...")
                 # 把工具结果注入 system_prompt
                 system_str += f"\n\n【工具调用结果】\n{agent_result}\n请基于以上工具结果回答用户。"
-            
+
             # ===== 4. 保存用户消息 =====
             messages = session.messages or []
             messages.append({"role": "user", "content": user_message})
             session.messages = messages
-            
+
             # ===== 5. 保存用户消息向量 =====
             saved_message = self.vector_service.save_message_with_embedding(
                 db, str(session_id), "user", user_message
@@ -156,19 +175,26 @@ class ChatService:
                         for chunk, similarity in kb_results:
                             doc_title = "未知文档"
                             try:
-                                from ...knowledge_simple.database import KnowledgeDocument
-                                doc = db.query(KnowledgeDocument).filter(
-                                    KnowledgeDocument.id == chunk.document_id
-                                ).first()
+                                from ...knowledge_simple.database import (
+                                    KnowledgeDocument,
+                                )
+
+                                doc = (
+                                    db.query(KnowledgeDocument)
+                                    .filter(KnowledgeDocument.id == chunk.document_id)
+                                    .first()
+                                )
                                 if doc:
                                     doc_title = doc.title
-                            except Exception as e:
+                            except Exception:
                                 pass
                             rag_parts.append(f"[📄 {doc_title}]: {chunk.content}")
-                            print(f"  相似度: {similarity:.3f} | {chunk.content[:30]}...")
+                            print(
+                                f"  相似度: {similarity:.3f} | {chunk.content[:30]}..."
+                            )
                 except Exception as e:
                     print(f"⚠️ 知识库检索失败: {e}")
-                
+
                 similar_messages = self.vector_service.search_similar_messages(
                     db,
                     user_message,
@@ -177,7 +203,7 @@ class ChatService:
                     limit=self.vector_service.rag_top_k,
                     threshold=self.vector_service.rag_threshold,
                 )
-                
+
                 if similar_messages:
                     print(f"🔍 第一条: {similar_messages[0]['content'][:50]}...")
                     for msg in similar_messages:
@@ -187,21 +213,26 @@ class ChatService:
                     system_str = system_str + rag_context
                     print(f"🔍 RAG召回{len(similar_messages)}条相似消息 ")
                     for msg in similar_messages:
-                        print(f"  相似度:{msg['similarity']:.3f} | {msg['content'][:30]}...")
+                        print(
+                            f"  相似度:{msg['similarity']:.3f} | {msg['content'][:30]}..."
+                        )
                 else:
-                    print(f"⚠️ RAG 没有检索到相关内容")
+                    print("⚠️ RAG 没有检索到相关内容")
 
                 if rag_parts:
-                    rag_context = "\n\n【参考信息 - 请基于以下内容回答】\n" + "\n---\n".join(rag_parts)
+                    rag_context = (
+                        "\n\n【参考信息 - 请基于以下内容回答】\n"
+                        + "\n---\n".join(rag_parts)
+                    )
                     system_str = system_str + rag_context
                     print(f"🔍 RAG共召回 {len(rag_parts)} 条参考信息")
                 else:
-                    print(f"⚠️ RAG 没有检索到任何相关内容")
-            
+                    print("⚠️ RAG 没有检索到任何相关内容")
+
             # ===== 7. 提交数据库 =====
             db.commit()
             db.refresh(session)
-            
+
             # ===== 8. 准备 API 请求 =====
             api_messages = [{"role": "system", "content": system_str}, *messages]
 
@@ -265,7 +296,9 @@ class ChatService:
 
         db = SessionLocal()
         try:
-            session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+            session = (
+                db.query(SessionModel).filter(SessionModel.id == session_id).first()
+            )
             if session:
                 session.messages = messages
                 if session.session_name.startswith("20") and len(messages) >= 2:
@@ -314,7 +347,9 @@ class ChatService:
 
         db = SessionLocal()
         try:
-            session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+            session = (
+                db.query(SessionModel).filter(SessionModel.id == session_id).first()
+            )
             if session:
                 session.messages = messages
                 if session.session_name.startswith("20") and len(messages) >= 2:
@@ -347,7 +382,9 @@ class ChatService:
         """创建新会话"""
         db = SessionLocal()
         try:
-            session_name = datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
+            session_name = (
+                datetime.now().strftime("%Y-%m-%d") + "-" + str(uuid.uuid4())[:4]
+            )
             session_id = uuid.uuid4()
             system_str = self.get_system_prompt(nick_name, nature, extra_rules)
 

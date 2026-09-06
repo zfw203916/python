@@ -313,7 +313,12 @@
             try {
                 const response = await fetch(`${API_BASE}/api/sessions`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nick_name: aiName.value || '小甜甜', nature: aiPersonality.value || '活泼开朗的台湾姑娘', extra_rules: rulesInput.value || defaultRules })
+                    body: JSON.stringify({ 
+                       // content: content,
+                        nick_name: aiName.value || '小甜甜', 
+                        nature: aiPersonality.value || '活泼开朗的台湾姑娘', 
+                        extra_rules: rulesInput.value || defaultRules 
+                    })
                 });
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
@@ -361,7 +366,11 @@
             const newRules = rulesInput.value.trim();
             try {
                 const response = await fetch(`${API_BASE}/api/sessions/${currentSessionId}`, {
-                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ extra_rules: newRules })
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        
+                        extra_rules: newRules 
+                    })
                 });
                 if (response.ok) { showNotification('✅ 行为规则已更新！', 'success'); displayRules(newRules); }
                 else { showNotification('❌ 更新失败，请重试', 'error'); }
@@ -390,7 +399,12 @@
                 const response = await fetch(`${API_BASE}/api/chat/stream`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: content, session_id: currentSessionId })
+                    body: JSON.stringify({
+                         content: content,
+                          session_id: currentSessionId,
+                          nick_name: aiName.value || '小甜甜', 
+                          nature: aiPersonality.value || '活泼开朗'  
+                        })
                 });
                 
                 if (!response.ok) throw new Error('Stream request failed');

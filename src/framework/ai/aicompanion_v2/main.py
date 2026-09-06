@@ -10,7 +10,8 @@ from .routers import sessions, chat
 
 # ========== 导入知识库 ==========
 from ..knowledge_simple.database import init_db as init_kb_db
-#从 routers 子模块中导入 router 对象
+
+# 从 routers 子模块中导入 router 对象
 from ..knowledge_simple.routers.documents import router as documents_router
 from ..knowledge_simple.routers.search import router as search_router
 
@@ -19,9 +20,9 @@ from ..agent.weather.core.router import router as agent_router
 
 # 创建FastAPI应用
 app = FastAPI(
-    title="AI智能伴侣 + 知识库", 
-    description="AI伴侣聊天应用 + 知识库管理", 
-    version="2.0.0"
+    title="AI智能伴侣 + 知识库",
+    description="AI伴侣聊天应用 + 知识库管理",
+    version="2.0.0",
 )
 
 # CORS配置
@@ -35,9 +36,9 @@ app.add_middleware(
 
 # ========== ✏️ 修改：确保两个模块的数据库表都被创建 ==========
 print("🔄 正在初始化AI伴侣数据库...")
-init_db()      # AI伴侣表
+init_db()  # AI伴侣表
 print("🔄 正在初始化知识库数据库...")
-init_kb_db()   # 知识库表（现在会创建向量索引）
+init_kb_db()  # 知识库表（现在会创建向量索引）
 print("✅ 所有数据库初始化完成")
 
 # ========== 注册AI伴侣路由 ==========
@@ -69,7 +70,7 @@ async def root():
         "message": "AI智能伴侣 + 知识库 API",
         "docs": "/docs",
         "ai_companion": "/static/index.html",
-        "knowledge_base": "/kb-static/index.html"
+        "knowledge_base": "/kb-static/index.html",
     }
 
 
@@ -78,18 +79,18 @@ async def health_check():
     return {"status": "healthy"}
 
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
-        "main:app", 
-        host="0.0.0.0", 
-        port=8000, 
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
         reload=True,
-        reload_dirs = ["src", "."],
+        reload_dirs=["src", "."],
         reload_includes=[
-            "*.py", 
+            "*.py",
             "*.env",
-            ".env"   # 有些系统把 .env 当作隐藏文件
+            ".env",  # 有些系统把 .env 当作隐藏文件
         ],
-        
-    ) 
+    )

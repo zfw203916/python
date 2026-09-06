@@ -20,6 +20,8 @@ SystemSettings	表示系统配置	内部传递配置数据
 class MessageRequest(BaseModel):
     content: str
     session_id: Optional[str] = None
+    nick_name: Optional[str] = None
+    nature: Optional[str] = None
 
 
 class MessageResponse(BaseModel):
