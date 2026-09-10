@@ -10,17 +10,16 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 
+
 env_path = Path(__file__).parent.parent.parent.parent / ".env"
-load_dotenv(env_path)
 
 Base = declarative_base()
-
 
 class KnowledgeDocument(Base):
     """知识库文档表"""
     __tablename__ = "knowledge_documents"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID(as_uuid=True),primary_key=True, default=uuid.uuid4)
     title = Column(String(200), nullable=False)
     filename = Column(String(255), nullable=False)
     file_type = Column(String(20), nullable=False)  # txt, pdf, docx
@@ -30,8 +29,7 @@ class KnowledgeDocument(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 关联分块
-    chunks = relationship("KnowledgeChunk", back_populates="document", cascade="all, delete-orphan")
-
+    chunks = relationship("KnowledgeChunk",back_populates = "document", cascade="all, delete-orphan")
 
 class KnowledgeChunk(Base):
     """知识库分块表（向量存储）"""
@@ -49,11 +47,7 @@ class KnowledgeChunk(Base):
 
 
 # 使用同一个数据库 - ai_companion
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", 
-    "postgresql://postgres:postgres@localhost:5432/ai_companion"
-)
-
+DATABASE_URL = os.environ.get("DATABASE_URL","postgresql://postgres:postgres@localhost:5432/ai_companion")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -67,10 +61,10 @@ def init_db():
         # 为知识库分块创建向量索引，加速检索
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists=100)"))
         conn.commit()
+
         # 创建表
         Base.metadata.create_all(bind=engine)
         print("✅ 知识库表创建成功")
-
 
 def get_db():
     db = SessionLocal()

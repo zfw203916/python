@@ -7,8 +7,6 @@ from pathlib import Path
 from .database import init_db
 from .routers import documents, search
 
-
-
 # 创建应用
 app = FastAPI(
     title="知识库系统", 
@@ -25,6 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # 初始化数据库
 init_db()
 
@@ -37,7 +36,6 @@ static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-
 @app.get("/")
 async def root():
     return {
@@ -47,12 +45,17 @@ async def root():
         "ui": "/static/index.html"
     }
 
-
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "knowledge-simple"}
-
+    return {
+        "status": "healthy", "service": "knowledge-simple"
+    }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8001,
+        reload=True
+    )

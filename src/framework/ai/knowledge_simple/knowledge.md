@@ -140,3 +140,8 @@ OpenAPI JSON	http://localhost:8000/openapi.json
 批量文档上传 - 支持文件夹上传
 
 知识库统计 - 文档数、检索次数等
+
+
+
+# 知识库的执行流程图：
+

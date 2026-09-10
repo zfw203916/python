@@ -1,13 +1,13 @@
 # src/framework/ai/knowledge_simple/models.py
+
+# src/framework/ai/knowledge_simple/models.py
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
-
 class DocumentUpload(BaseModel):
     """文档上传请求"""
     title: Optional[str] = None
-
 
 class DocumentResponse(BaseModel):
     """文档响应"""
@@ -18,26 +18,25 @@ class DocumentResponse(BaseModel):
     chunk_count: int
     created_at: datetime
 
-
 class ChunkResponse(BaseModel):
     """分块响应"""
     content: str
-    chunk_index: int
+    chunk_index: float
     similarity: Optional[float] = None
 
-
+# 单行注释：定义搜索请求的数据模型
 class SearchRequest(BaseModel):
     """搜索请求"""
     query: str
     top_k: int = 5
-
+    
 
 class SearchResult(BaseModel):
     """搜索结果"""
     document_id: str
     document_title: str
     chunks: List[ChunkResponse]
-
+ 
 
 class SimpleSearchResponse(BaseModel):
     """简单搜索结果"""

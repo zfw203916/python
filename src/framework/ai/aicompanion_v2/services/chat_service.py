@@ -24,16 +24,9 @@ RAG_THRESHOLD = float(os.environ.get("RAG_THRESHOLD", 0.5))
 # 添加知识库模块到路径
 kb_path = Path(__file__).parent.parent.parent / "knowledge_simple"
 sys.path.insert(0, str(kb_path))
-# ============ 🆕 导入知识库服务 ============
+# ============ 导入知识库服务 ============
 from src.framework.ai.knowledge_simple.services.document_service import DocumentService
 from src.framework.ai.knowledge_simple.database import KnowledgeChunk, KnowledgeDocument
-
-db = SessionLocal()
-doc_count = db.query(KnowledgeDocument).count()
-chunk_count = db.query(KnowledgeChunk).count()
-print(f"文档数量: {doc_count}")
-print(f"分块数量: {chunk_count}")
-
 
 # ================================================
 class ChatService:
@@ -403,3 +396,12 @@ class ChatService:
             return str(session.id)
         finally:
             db.close()
+
+
+    def get_stats(self):
+        # 知识做调试用
+        db = SessionLocal()
+        doc_count = db.query(KnowledgeDocument).count()
+        chunk_count = db.query(KnowledgeChunk).count()
+        print(f"文档数量: {doc_count}")
+        print(f"分块数量: {chunk_count}")
