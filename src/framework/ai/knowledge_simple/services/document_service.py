@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from ..database import KnowledgeDocument, KnowledgeChunk
 from .embedding_service import EmbeddingService
+# 导入日志
+import logging
+logger = logging.getLogger(__name__)
 
 class DocumentService:
     """文档处理服务"""

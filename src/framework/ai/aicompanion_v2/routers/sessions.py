@@ -15,7 +15,6 @@ chat_service = ChatService()
 
 
 @router.get("/", response_model=List[SessionResponse])
-# async def get_sessions(db: Session = Depends(get_db)):
 async def get_sessions(db: Annotated[Session, Depends(get_db)]):
     """获取所有会话"""
 

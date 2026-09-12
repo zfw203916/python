@@ -18,11 +18,18 @@ from ..knowledge_simple.routers.search import router as search_router
 # ========== 导入 Agent（ ==========
 from ..agent.weather.core.router import router as agent_router
 
+# 导入日志
+import logging
+from .logging_config import setup_logging
+setup_logging()
+logger = logging.getLogger(__name__)
+
+
 # 创建FastAPI应用
 app = FastAPI(
     title="AI智能伴侣 + 知识库",
     description="AI伴侣聊天应用 + 知识库管理",
-    version="2.0.0",
+    version="2.0.1",
 )
 
 # CORS配置
@@ -35,11 +42,11 @@ app.add_middleware(
 )
 
 # ========== ✏️ 修改：确保两个模块的数据库表都被创建 ==========
-print("🔄 正在初始化AI伴侣数据库...")
+logger.info("🔄 正在初始化AI伴侣数据库...")
 init_db()  # AI伴侣表
-print("🔄 正在初始化知识库数据库...")
+logger.info("🔄 正在初始化知识库数据库...")
 init_kb_db()  # 知识库表（现在会创建向量索引）
-print("✅ 所有数据库初始化完成")
+logger.info("✅ 所有数据库初始化完成")
 
 # ========== 注册AI伴侣路由 ==========
 app.include_router(sessions)

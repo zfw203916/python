@@ -3,9 +3,14 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
+# 导入日志
+import logging
 
 env_path = Path(__file__).parent.parent.parent.parent.parent / ".env"
 load_dotenv(env_path)
+from ...aicompanion_v2.logging_config import setup_logging
+setup_logging()
+logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     """向量化服务 - 使用SLM模型"""
@@ -20,10 +25,10 @@ class EmbeddingService:
 
         if self.enabled:
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-            print(f"✅ Embedding 服务已启用，模型: {self.model}")
+            logger.info(f"✅ Embedding 服务已启用，模型: {self.model}")
         else:
             self.client = None
-            print("⚠️ Embedding 未配置，将使用简单的文本搜索")
+            logger.info("⚠️ Embedding 未配置，将使用简单的文本搜索")
 
 
 
