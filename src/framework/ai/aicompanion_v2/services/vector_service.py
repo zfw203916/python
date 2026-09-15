@@ -80,8 +80,7 @@ class VectorService:
     ) -> list:
         """搜索相似消息"""
         """
-            🟢 新增：搜索相似消息（带阈值过滤）
-            用于RAG检索增强
+            搜索相似消息（带阈值过滤),用于RAG检索增强
         """
         query_embedding = self.get_embedding(query)
         if not query_embedding:
@@ -94,7 +93,7 @@ class VectorService:
                 FROM ai_messages
                 WHERE (:session_id IS NULL OR session_id = :session_id)
                     AND embedding IS NOT NULL
-                    AND (:exclude_id IS NOT NULL OR id != cast(:exclude_id as uuid))
+                    AND (:exclude_id IS NULL OR id != cast(:exclude_id as uuid))
                 ORDER BY embedding <=> cast(:query_embedding as vector)
                 LIMIT :limit 
             """)

@@ -34,7 +34,7 @@ uv init
 uv add fastapi uvicorn openai pydantic python-dotenv sse-starlette
 
 #2. 启动后端
-uv run uvicorn src.framework.ai.aicompanion.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn src.framework.ai.aicompanion_v2.main:app --host 0.0.0.0 --port 8000 --reload
 
 #或者使用脚本
 uv run start-backend

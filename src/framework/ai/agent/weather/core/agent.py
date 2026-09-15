@@ -37,18 +37,19 @@ class SmartAgent:
 
     def _create_agent(self):
         """创建 Agent"""
-        system_prompt = """你是一个智能助手，可以根据用户的问题自主决定调用哪些工具。
+        system_prompt = """
+            你是一个智能助手，可以根据用户的问题自主决定调用哪些工具。
 
-可用工具：
-1. get_weather - 查询天气
-2. calculate - 数学计算
+            可用工具：
+                1. get_weather - 查询天气
+                2. calculate - 数学计算
 
-规则：
-- 根据用户问题自主选择是否需要调用工具
-- 如果不需要工具，直接回答
-- 如果需要工具，调用并组织答案
-- 始终用中文回复
-"""
+            规则：
+                - 根据用户问题自主选择是否需要调用工具
+                - 如果不需要工具，直接回答
+                - 如果需要工具，调用并组织答案
+                - 始终用中文回复
+        """
 
         self.agent = create_react_agent(
             self.llm,

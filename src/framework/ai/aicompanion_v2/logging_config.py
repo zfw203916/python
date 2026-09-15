@@ -10,12 +10,12 @@ LOG_DIR.mkdir(exist_ok=True)
 env_path = Path(__file__).parent.parent.parent.parent.parent / ".env"
 load_dotenv(env_path)
 LOG_ENABLED = os.environ.get("LOG_ENABLED","false").lower() == "true"
-LOG_LEVEL = os.environ.get("LOG_LEVEL","INFO")
+LOG_LEVEL = os.environ.get("LOG_LEVEL","ERROR").upper()
 
-def setup_logging(level: str = LOG_LEVEL):
+def setup_logging(level: str = LOG_LEVEL, log_enabled: bool = LOG_ENABLED):
     """配置全局日志"""
     #未启用日志则直接返回
-    if not LOG_ENABLED:
+    if not log_enabled:
         logging.disable(logging.CRITICAL)
         return
     # 日志格式
@@ -33,7 +33,8 @@ def setup_logging(level: str = LOG_LEVEL):
     # 根 logger 配置
     logging.basicConfig(
         level=getattr(logging, level.upper()),
-        handlers=[console_handler, file_handler]
+        handlers=[console_handler, file_handler],
+        force = True
     )
 
     # 降低第三方库的日志级别（避免刷屏）

@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware #中间件
 from pathlib import Path
 
 from .database import init_db
@@ -18,6 +19,12 @@ from ..knowledge_simple.routers.search import router as search_router
 # ========== 导入 Agent（ ==========
 from ..agent.weather.core.router import router as agent_router
 
+# ========= 导入学生管理系统 =========
+from ....app.clients.studentmanage_v2.routers import auth as student_auth
+from ....app.clients.studentmanage_v2.routers import students as student_students
+from ....app.clients.studentmanage_v2.database import init_db as init_student_db
+
+
 # 导入日志
 import logging
 from .logging_config import setup_logging
@@ -29,10 +36,10 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="AI智能伴侣 + 知识库",
     description="AI伴侣聊天应用 + 知识库管理",
-    version="2.0.1",
+    version="2.0.2",
 )
 
-# CORS配置
+# ========== 中间件,CORS配置 ==========
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -41,11 +48,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Session 中间件（学生管理系统需要）
+app.add_middleware(
+    SessionMiddleware,
+    secret_key="653-254-338",
+    session_cookie="student_session" # ← 学生管理的 cookie 名,用不同的 session cookie 名.防止跟 AI的session冲突。
+)
+
 # ========== ✏️ 修改：确保两个模块的数据库表都被创建 ==========
-logger.info("🔄 正在初始化AI伴侣数据库...")
+# logger.info("🔄 正在初始化AI伴侣数据库...")
 init_db()  # AI伴侣表
-logger.info("🔄 正在初始化知识库数据库...")
+# logger.info("🔄 正在初始化知识库数据库...")
 init_kb_db()  # 知识库表（现在会创建向量索引）
+init_student_db() # 学生管理表
 logger.info("✅ 所有数据库初始化完成")
 
 # ========== 注册AI伴侣路由 ==========
@@ -53,14 +68,20 @@ app.include_router(sessions)
 app.include_router(chat)
 
 # ========== 注册知识库路由 ==========
-# ✅ 使用正确导入的 router 对象
+# 使用正确导入的 router 对象
 app.include_router(documents_router)
 app.include_router(search_router)
 
 # ========== 工具集路由 ==========
 app.include_router(agent_router)
 
-# 静态文件服务
+# ========== 学生管理路由 ==========
+app.include_router(student_auth.router)
+app.include_router(student_students.router)
+
+
+# ========== 静态文件服务 ==========
+# AI智能伴侣静态文件
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
@@ -70,6 +91,11 @@ kb_static_dir = Path(__file__).parent.parent / "knowledge_simple" / "static"
 if kb_static_dir.exists():
     app.mount("/kb-static", StaticFiles(directory=str(kb_static_dir)), name="kb-static")
 
+# 学生管理前端
+student_templates_dir = Path(__file__).parent.parent.parent.parent / "app" / "clients" / "studentmanage_v2" / "templates"
+if student_templates_dir.exists():
+    app.mount("/student-static",StaticFiles(directory=str(student_templates_dir)), name="student-static")
+
 
 @app.get("/")
 async def root():
@@ -78,6 +104,7 @@ async def root():
         "docs": "/docs",
         "ai_companion": "/static/index.html",
         "knowledge_base": "/kb-static/index.html",
+        "student_manage" : "/student",
     }
 
 
@@ -85,6 +112,16 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
+
+# 学生管理主页
+from fastapi.responses import HTMLResponse
+@app.get("/student", response_class=HTMLResponse)
+async def student_index():
+    """学生管理主页"""
+    html_file = student_templates_dir / "index.html"
+    if not html_file.exists():
+        return HTMLResponse(content="<h1>学生管理页面不存在</h1>", status_code=404)
+    return HTMLResponse(html_file.read_text(encoding="utf-8"))
 
 if __name__ == "__main__":
     import uvicorn

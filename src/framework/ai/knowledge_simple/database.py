@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 env_path = Path(__file__).parent.parent.parent.parent / ".env"
-
+load_dotenv(env_path)
 Base = declarative_base()
 
 class KnowledgeDocument(Base):

@@ -197,6 +197,20 @@ class ChatService:
                     threshold=self.vector_service.rag_threshold,
                 )
 
+                # 去重
+                if similar_messages:
+                    # 按 content 去重，保留最高相似度
+                    seen_contents = set()
+                    unique_messages = []
+        
+                    for msg in similar_messages:
+                        content_key = msg['content'].strip()
+                        if content_key not in seen_contents:
+                            seen_contents.add(content_key)
+                            unique_messages.append(msg)
+                    print(f"🔍 去重前: {len(similar_messages)} 条，去重后: {len(unique_messages)} 条")
+                    similar_messages = unique_messages 
+
                 if similar_messages:
                     print(f"🔍 第一条: {similar_messages[0]['content'][:50]}...")
                     for msg in similar_messages:

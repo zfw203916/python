@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生管理系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        /* 登录页面样式 */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-box {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-title {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        .form-group { margin-bottom: 20px; }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary { background: #667eea; color: white; width: 100%; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #218838; }
+        .btn-warning { background: #ffc107; color: #333; }
+        .btn-warning:hover { background: #e0a800; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-info { background: #17a2b8; color: white; }
+        .btn-info:hover { background: #138496; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+        /* 主页面样式 */
+        .main-container { min-height: 100vh; display: none; }
+
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h2 { color: #333; }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .content { padding: 30px; }
+
+        .toolbar {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .search-form input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            overflow-x: auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        th, td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        th { background: #f8f9fa; color: #555; font-weight: 600; }
+        tr:hover { background: #f8f9fa; }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header { margin-bottom: 20px; }
+        .modal-header h3 { color: #333; }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .close { float: right; cursor: pointer; font-size: 24px; }
+
+        .message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 5px;
+            color: white;
+            z-index: 1100;
+            animation: slideIn 0.3s ease;
+        }
+
+        .message-success { background: #28a745; }
+        .message-error { background: #dc3545; }
+        .message-warning { background: #ffc107; color: #333; }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .stats { color: #666; font-size: 14px; }
+
+        @media (max-width: 768px) {
+            .toolbar { flex-direction: column; }
+            .search-form { width: 100%; }
+            .search-form input { flex: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 登录页面 -->
+    <div class="login-container" id="loginContainer">
+        <div class="login-box">
+            <h2 class="login-title">学生管理系统</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" id="password" required>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn btn-primary" onclick="register()">注册</button>
+                    <button type="button" class="btn btn-primary" onclick="login()" style="background: #28a745;">登录</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 主页面 -->
+    <div class="main-container" id="mainContainer">
+        <div class="navbar">
+            <h2>📚 学生信息管理系统</h2>
+            <div class="user-info">
+                <span>欢迎, <span id="currentUser"></span></span>
+                <button class="btn btn-danger btn-sm" onclick="logout()">退出登录</button>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="toolbar">
+                <div class="search-form">
+                    <input type="text" id="searchName" placeholder="姓名">
+                    <input type="text" id="searchId" placeholder="学号">
+                    <input type="text" id="searchAge" placeholder="年龄">
+                    <button class="btn btn-primary" onclick="searchStudents()">🔍 查询</button>
+                    <button class="btn btn-warning" onclick="resetSearch()">🔄 重置</button>
+                </div>
+                <div>
+                    <button class="btn btn-success" onclick="showAddModal()">➕ 添加学生</button>
+                    <button class="btn btn-info" onclick="loadStudents()">🔄 刷新</button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="studentTable">
+                    <thead>
+                        <tr>
+                            <th>姓名</th>
+                            <th>学号</th>
+                            <th>年龄</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentTableBody">
+                        <tr>
+                            <td colspan="4" style="text-align: center;">加载中...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="stats" id="stats" style="margin-top: 10px;"></div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑模态框 -->
+    <div id="studentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <h3 id="modalTitle">添加学生</h3>
+            </div>
+            <form id="studentForm">
+                <input type="hidden" id="studentId">
+                <div class="form-group">
+                    <label>姓名</label>
+                    <input type="text" id="studentName" required>
+                </div>
+                <div class="form-group">
+                    <label>学号</label>
+                    <input type="text" id="studentNumber" required>
+                </div>
+                <div class="form-group">
+                    <label>年龄</label>
+                    <input type="number" id="studentAge" required>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-warning" onclick="closeModal()">取消</button>
+                    <button type="button" class="btn btn-success" onclick="saveStudent()">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 消息提示 ====================
+        function showMessage(msg, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${type}`;
+            messageDiv.innerHTML = msg;
+            document.body.appendChild(messageDiv);
+            setTimeout(() => { messageDiv.remove(); }, 3000);
+        }
+
+        // ==================== 页面初始化 ====================
+        async function checkSession() {
+            const response = await fetch('/api/student/auth/session');
+            const data = await response.json();
+
+            if (data.logged_in) {
+                document.getElementById('loginContainer').style.display = 'none';
+                document.getElementById('mainContainer').style.display = 'block';
+                document.getElementById('currentUser').textContent = data.username;
+                loadStudents();
+            } else {
+                document.getElementById('loginContainer').style.display = 'flex';
+                document.getElementById('mainContainer').style.display = 'none';
+            }
+        }
+
+        // ==================== 认证相关 ====================
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            if (!username || !password) {
+                showMessage('请输入用户名和密码', 'warning');
+                return;
+            }
+
+            const response = await fetch('/api/student/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showMessage('登录成功', 'success');
+                setTimeout(() => checkSession(), 500);
+            } else {
+                showMessage(data.message, 'error');
+            }
+        }
+
+        async function register() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            if (!username || !password) {
+                showMessage('请输入用户名和密码', 'warning');
+                return;
+            }
+
+            const response = await fetch('/api/student/auth/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showMessage('注册成功', 'success');
+            } else {
+                showMessage(data.message, 'error');
+            }
+        }
+
+        async function logout() {
+            await fetch('/api/student/auth/logout', {method: 'POST'});
+            checkSession();
+        }
+
+        // ==================== 学生数据操作 ====================
+        async function loadStudents() {
+            const response = await fetch('/api/student/students');
+            if (response.status === 401) {
+                checkSession();
+                return;
+            }
+            const students = await response.json();
+            renderStudentTable(students);
+        }
+
+        function renderStudentTable(students) {
+            const tbody = document.getElementById('studentTableBody');
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">暂无数据</td></tr>';
+                document.getElementById('stats').innerHTML = '共 0 条记录';
+                return;
+            }
+
+            tbody.innerHTML = students.map(s => `
+                <tr>
+                    <td>${escapeHtml(s.name)}</td>
+                    <td>${escapeHtml(s.student_id)}</td>
+                    <td>${s.age}</td>
+                    <td class="action-buttons">
+                        <button class="btn btn-warning btn-sm" onclick="editStudent(${s.id})">编辑</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id})">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('stats').innerHTML = `共 ${students.length} 条记录`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function searchStudents() {
+            const name = document.getElementById('searchName').value;
+            const student_id = document.getElementById('searchId').value;
+            const age = document.getElementById('searchAge').value;
+
+            const params = new URLSearchParams();
+            if (name) params.append('name', name);
+            if (student_id) params.append('student_id', student_id);
+            if (age) params.append('age', age);
+
+            const response = await fetch(`/api/student/students/search?${params}`);
+            if (response.status === 401) {
+                checkSession();
+                return;
+            }
+            const students = await response.json();
+            renderStudentTable(students);
+        }
+
+        function resetSearch() {
+            document.getElementById('searchName').value = '';
+            document.getElementById('searchId').value = '';
+            document.getElementById('searchAge').value = '';
+            loadStudents();
+        }
+
+        function showAddModal() {
+            document.getElementById('modalTitle').innerText = '添加学生';
+            document.getElementById('studentId').value = '';
+            document.getElementById('studentName').value = '';
+            document.getElementById('studentNumber').value = '';
+            document.getElementById('studentAge').value = '';
+            document.getElementById('studentModal').style.display = 'flex';
+        }
+
+        function editStudent(id) {
+            fetch(`/api/student/students/${id}`)
+                .then(res => res.json())
+                .then(student => {
+                    document.getElementById('modalTitle').innerText = '编辑学生';
+                    document.getElementById('studentId').value = student.id;
+                    document.getElementById('studentName').value = student.name;
+                    document.getElementById('studentNumber').value = student.student_id;
+                    document.getElementById('studentAge').value = student.age;
+                    document.getElementById('studentModal').style.display = 'flex';
+                });
+        }
+
+        async function saveStudent() {
+            const id = document.getElementById('studentId').value;
+            const name = document.getElementById('studentName').value.trim();
+            const student_id = document.getElementById('studentNumber').value.trim();
+            const age = document.getElementById('studentAge').value;
+
+            // 前端也校验
+            if (!name || !student_id || !age) {
+                showMessage('请填写所有字段', 'warning');
+                return;
+            }
+            
+            const ageNum = parseInt(age);
+            if (ageNum < 1 || ageNum > 150) {
+                showMessage('年龄必须在 1-150 之间', 'warning');
+                return;
+            }
+
+            const url = id ? `/api/student/students/${id}` : '/api/student/students';
+            const method = id ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, student_id, age: ageNum})
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage(data.message || '操作成功', 'success');
+                    closeModal();
+                    loadStudents();
+                } else {
+                    // ✅ 处理各种错误
+                    let errorMsg = '操作失败';
+                    
+                    if (response.status === 422) {
+                        // Pydantic 验证错误
+                        if (Array.isArray(data.detail)) {
+                            errorMsg = data.detail.map(e => {
+                                const field = e.loc[e.loc.length - 1];
+                                return `${field}: ${e.msg}`;
+                            }).join('; ');
+                        }
+                    } else if (data.message) {
+                        errorMsg = data.message;
+                    } else if (data.detail) {
+                        errorMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                    }
+                    
+                    showMessage(errorMsg, 'error');
+                }
+            } catch (error) {
+                showMessage('网络错误: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteStudent(id) {
+            if (confirm('确定要删除这名学生吗？')) {
+                const response = await fetch(`/api/student/students/${id}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('删除成功', 'success');
+                    loadStudents();
+                } else {
+                    showMessage('删除失败', 'error');
+                }
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('studentModal').style.display = 'none';
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('studentModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // 页面加载时检查会话
+        checkSession();
+    </script>
+</body>
+</html>
