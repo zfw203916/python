@@ -1,19 +1,14 @@
 # src/framework/ai/knowledge_simple/database.py
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+import logging
+from sqlalchemy import Column, String, DateTime, Text, Integer, ForeignKey, text
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
 import uuid
 from datetime import datetime
-import os
-from dotenv import load_dotenv
-from pathlib import Path
+from ....shared.database import engine, SessionLocal, Base, get_db
 
-
-env_path = Path(__file__).parent.parent.parent.parent / ".env"
-load_dotenv(env_path)
-Base = declarative_base()
+logger = logging.getLogger(__name__)
 
 class KnowledgeDocument(Base):
     """知识库文档表"""
@@ -46,16 +41,10 @@ class KnowledgeChunk(Base):
     document = relationship("KnowledgeDocument", back_populates="chunks")
 
 
-# 使用同一个数据库 - ai_companion
-DATABASE_URL = os.environ.get("DATABASE_URL","postgresql://postgres:postgres@localhost:5432/ai_companion")
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 
 def init_db():
     """初始化知识库表"""
     with engine.connect() as conn:
-        from sqlalchemy import text
         # 创建 vector 扩展（如果不存在）
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         # 为知识库分块创建向量索引，加速检索
@@ -64,11 +53,4 @@ def init_db():
 
         # 创建表
         Base.metadata.create_all(bind=engine)
-        print("✅ 知识库表创建成功")
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+        logger.info("✅ 知识库表创建成功")

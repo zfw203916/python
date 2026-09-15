@@ -1,23 +1,13 @@
 # my-test-framework/src/framework/ai/aicompanion_v2/database.py
-
-from sqlalchemy import create_engine, Column, String, DateTime, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Column, String, DateTime, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
 import uuid
 from datetime import datetime
-import os
-from dotenv import load_dotenv
 from sqlalchemy import text
-from pathlib import Path
 from sqlalchemy import Boolean
 
-# 指定 .env 文件路径（项目根目录）
-env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(env_path)
-
-Base = declarative_base()
+from ....shared.database import engine, SessionLocal, Base, get_db
 
 
 class SessionModel(Base):
@@ -46,15 +36,6 @@ class MessageModel(Base):
     embedding = Column(Vector(1024))  # 消息向量
     created_at = Column(DateTime, default=datetime.now)
 
-
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ai_companion"
-)
-
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
 def init_db():
     """初始化数据库，创建表和pgvector扩展"""
     with engine.connect() as conn:
@@ -68,11 +49,3 @@ def init_db():
         )
         conn.commit()
         Base.metadata.create_all(bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
