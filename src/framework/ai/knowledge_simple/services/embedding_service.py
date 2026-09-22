@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 from pathlib import Path
 # 导入日志
 import logging
-
+import traceback
+# 导入模型
+from .....shared.llm import  get_embedding_client, EMBEDDING_MODEL
 env_path = Path(__file__).parent.parent.parent.parent.parent / ".env"
 load_dotenv(env_path)
 from ...aicompanion_v2.logging_config import setup_logging
@@ -15,22 +17,19 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """向量化服务 - 使用SLM模型"""
     def __init__(self):
-        # 使用 DeepSeek 或 OpenAI 的 embedding 接口,deepseek没有向量的模型。
-        self.api_key = os.environ.get("EMBEDDING_API_KEY") or os.environ.get("APP_DEEPSEEK_API_KEY")
-        self.base_url = os.environ.get("EMBEDDING_URL") or os.environ.get("APP_DEEPSEEK_URL")
-        self.model = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
-
+        # 使用硅流的 embedding 接口,deepseek没有向量的模型。
+        self.client = get_embedding_client()
+        self.model = EMBEDDING_MODEL
+        self.enabled = self.client is not None
         # 是否启用向量化（如果没配置则使用简单文本搜索）
-        self.enabled  = bool(self.api_key)
-
         if self.enabled:
-            self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
             logger.info(f"✅ Embedding 服务已启用，模型: {self.model}")
         else:
-            self.client = None
             logger.info("⚠️ Embedding 未配置，将使用简单的文本搜索")
 
-
+        # ← 加这两行：打印实例 id 和调用栈
+        # logger.info(f"实例 id={id(self)}")
+        # logger.info("调用栈:\n%s", "".join(traceback.format_stack()))
 
     def get_embedding(self, text: str) -> str:
         """获取文本向量"""

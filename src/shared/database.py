@@ -1,9 +1,10 @@
 # src/shared/database.py
 """
-    共享数据库连接池
+共享数据库连接池
 
-    所有服务复用同一个 engine，避免连接池重复。
+所有服务复用同一个 engine，避免连接池重复。
 """
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from pathlib import Path
@@ -18,19 +19,18 @@ load_dotenv(env_path)
 
 # ========== 数据库 URL ==========
 DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/ai_companion"
+    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ai_companion"
 )
 
 # ========== 全局唯一 engine ==========
 engine = create_engine(
     DATABASE_URL,
-    pool_size=10,          # 连接池大小
-    max_overflow=20,       # 超出 pool_size 时最多再创建 20 个
-    pool_timeout=30,       # 等待连接的超时时间（秒）
-    pool_recycle=3600,     # 连接回收时间（1 小时）
-    pool_pre_ping=True,    # 使用前 ping 一下，避免死连接
-    echo=False,            # 不打印 SQL
+    pool_size=10,  # 连接池大小
+    max_overflow=20,  # 超出 pool_size 时最多再创建 20 个
+    pool_timeout=30,  # 等待连接的超时时间（秒）
+    pool_recycle=3600,  # 连接回收时间（1 小时）
+    pool_pre_ping=True,  # 使用前 ping 一下，避免死连接
+    echo=False,  # 不打印 SQL
 )
 
 

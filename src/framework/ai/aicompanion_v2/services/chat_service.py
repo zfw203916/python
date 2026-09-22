@@ -11,10 +11,13 @@ from dotenv import load_dotenv
 from pathlib import Path
 from sqlalchemy.orm import Session
 
-# 🟢 导入 Agent
-from ...agent.weather.core.agent import smart_agent
+# 导入LLM的配置
+from .....shared.llm import APP_DEEPSEEK_MODEL, get_chat_client
 
-
+# 导入 Agent
+# from ...agent.weather.core.agent import smart_agent
+# ✅ 改成原生
+from ...agent.weather.core.agent_native import native_weather_agent
 load_dotenv()
 # 指定 .env 文件路径（项目根目录）
 env_path = Path(__file__).parent.parent / ".env"
@@ -31,19 +34,13 @@ from src.framework.ai.knowledge_simple.database import KnowledgeChunk, Knowledge
 # ================================================
 class ChatService:
     def __init__(self):
-        self.api_key = os.environ.get("APP_DEEPSEEK_API_KEY")
-        self.base_url = os.environ.get("APP_DEEPSEEK_URL")
-        self.model = os.environ.get("APP_DEEPSEEK_MODEL")
+        self.model = APP_DEEPSEEK_MODEL
         self.vector_service = VectorService()
+        self.client = get_chat_client()
 
         # 初始化知识库服务，并配置是否启用
         self.kb_service = DocumentService()
         self.enable_rag = os.environ.get("ENABLE_RAG", "true").lower() == "true"
-
-        if self.api_key:
-            self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-        else:
-            self.client = None
 
     def get_system_prompt(self, nick_name: str, nature: str, extra_rules: str) -> str:
         """生成系统提示"""
@@ -132,13 +129,18 @@ class ChatService:
 
             # ===== 3. 🟢 让 Agent 判断是否需要工具 =====
             agent_result = None
-            use_agent = smart_agent.should_use_tools(user_message)
+            # use_agent = smart_agent.should_use_tools(user_message)
+            use_agent = native_weather_agent.should_use_tools(user_message)
             print(f"🤖 Agent 判断结果: use_agent={use_agent}")
 
             if use_agent:
-                print(f"🔧 Agent 调用工具: {user_message}")
-                agent_result = smart_agent.run(user_message)
+                # print(f"🔧 Agent 调用工具: {user_message}")
+                # agent_result = smart_agent.run(user_message)
+                # print(f"✅ Agent 返回: {agen  t_result[:50]}...")
+                agent_result = native_weather_agent.run(user_message)
                 print(f"✅ Agent 返回: {agent_result[:50]}...")
+                
+
                 # 把工具结果注入 system_prompt
                 system_str += f"\n\n【工具调用结果】\n{agent_result}\n请基于以上工具结果回答用户。"
 

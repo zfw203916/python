@@ -15,7 +15,7 @@ chat_service = ChatService()
 async def chat_stream(request: MessageRequest):
     """流式聊天 - 统一走 AI 伴侣"""
     session_id = request.session_id or str(uuid.uuid4())
-    print(f"-----{request.nick_name}------")
+  
     try:
         generator = chat_service.chat(
             session_id, 

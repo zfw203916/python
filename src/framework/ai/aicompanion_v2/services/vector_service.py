@@ -6,7 +6,7 @@ from sqlalchemy import text
 from ..database import MessageModel
 from dotenv import load_dotenv
 from pathlib import Path
-
+from .....shared.llm import get_embedding_client, EMBEDDING_MODEL
 
 # 指定 .env 文件路径（项目根目录）
 env_path = Path(__file__).parent.parent / ".env"
@@ -17,18 +17,8 @@ class VectorService:
     load_dotenv()  # 加载.env文件
 
     def __init__(self):
-        self.embedding_api_key = os.environ.get("EMBEDDING_API_KEY")
-        self.embedding_url = os.environ.get("EMBEDDING_URL")
-        # Embedding模型配置
-        self.embedding_model = os.environ.get("EMBEDDING_MODEL")
-
-        # 独立的Embedding客户端
-        if self.embedding_api_key:
-            self.embedding_client = OpenAI(
-                api_key=self.embedding_api_key, base_url=self.embedding_url
-            )
-        else:
-            self.embedding_client = None
+        self.embedding_client = get_embedding_client()   # 全局单例
+        self.embedding_model = EMBEDDING_MODEL     
 
         # RAG配置
         self.enable_rag = os.environ.get("ENABLE_RAG", "true").lower() == "true"

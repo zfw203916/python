@@ -6,7 +6,6 @@ import uuid
 from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy import Boolean
-
 from ....shared.database import engine, SessionLocal, Base, get_db
 
 
@@ -26,6 +25,7 @@ class SessionModel(Base):
     messages_embedding = Column(Vector(1024))  # OpenAI embedding维度
     is_pinned = Column(Boolean, default=False)
 
+
 class MessageModel(Base):
     __tablename__ = "ai_messages"
 
@@ -35,6 +35,7 @@ class MessageModel(Base):
     content = Column(Text, nullable=False)
     embedding = Column(Vector(1024))  # 消息向量
     created_at = Column(DateTime, default=datetime.now)
+
 
 def init_db():
     """初始化数据库，创建表和pgvector扩展"""

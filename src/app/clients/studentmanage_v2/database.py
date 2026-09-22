@@ -18,15 +18,14 @@
 API 文档：http://127.0.0.1:5004/docs
 
 """
-
+from ....shared.database import engine, SessionLocal, Base, get_db
 # 导入日志
 import logging
-from ....shared.database import engine, SessionLocal, Base, get_db 
 logger = logging.getLogger(__name__)
+
 
 def init_db():
     """初始化表（只创建学生管理相关的表）"""
-    from .models_db import StudentUser, Student
     # 创建表，手动表没创建时可以由这个创建。
     # Base.metadata.create_all(bind=engine)
     logger.info("✅ 学生管理表初始化完成，手动表创建过")
