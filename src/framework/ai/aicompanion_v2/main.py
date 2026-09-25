@@ -26,6 +26,8 @@ from ....app.clients.studentmanage_v2.routers import auth as student_auth
 from ....app.clients.studentmanage_v2.routers import students as student_students
 from ....app.clients.studentmanage_v2.database import init_db as init_student_db
 
+# =======AI 介入接管学生系统 ===========
+from ....app.clients.studentmanage_v2.routers import students_ai 
 
 # 导入日志
 from .logging_config import setup_logging
@@ -86,6 +88,8 @@ app.include_router(search_router)
 app.include_router(student_auth.router)
 app.include_router(student_students.router)
 
+# ========== AI学生管理路由 ==========
+app.include_router(students_ai.router)
 
 # ========== 静态文件服务 ==========
 # AI智能伴侣静态文件

@@ -17,7 +17,7 @@ from .....shared.llm import APP_DEEPSEEK_MODEL, get_chat_client
 # 导入 Agent
 # from ...agent.weather.core.agent import smart_agent
 # ✅ 改成原生
-from ...agent.weather.core.agent_native import native_weather_agent
+from ...agent.weather.core.agent_native import (native_weather_agent,local_slm_agent)
 load_dotenv()
 # 指定 .env 文件路径（项目根目录）
 env_path = Path(__file__).parent.parent / ".env"
@@ -129,7 +129,10 @@ class ChatService:
 
             # ===== 3. 🟢 让 Agent 判断是否需要工具 =====
             agent_result = None
-            # use_agent = smart_agent.should_use_tools(user_message)
+            # use_agent = smart_agent.should_use_tools(user_message) 
+            # use_agent = native_weather_agent.should_use_tools(user_message) # 这里用的还是deepseek
+
+            # 意图判断统一用 DeepSeek 版（关键词，快）
             use_agent = native_weather_agent.should_use_tools(user_message)
             print(f"🤖 Agent 判断结果: use_agent={use_agent}")
 
@@ -137,10 +140,26 @@ class ChatService:
                 # print(f"🔧 Agent 调用工具: {user_message}")
                 # agent_result = smart_agent.run(user_message)
                 # print(f"✅ Agent 返回: {agen  t_result[:50]}...")
-                agent_result = native_weather_agent.run(user_message)
+                # agent_result = native_weather_agent.run(user_message)
+                if local_slm_agent is not None:
+                    print("🟢 使用本地 SLM 跑工具")
+                    agent_result = local_slm_agent.run(user_message)
+                else:
+                    print("🔵 使用 DeepSeek 跑工具")
+                    agent_result = native_weather_agent.run(user_message)
+
+                # 本地失败降级
+                if (
+                    not agent_result 
+                    or "工具执行失败" in agent_result
+                    or "无需调用工具" in agent_result # 识别出"本地 SLM 没干活"，直接降级到 DeepSeek 重跑。
+                    or len(agent_result) < 5 # 用"长度"作为最粗糙但最有效的"是否有效结果"过滤器。任何短于 5 字符的返回值，100% 是废文本，直接降级。
+                ):
+                    print("⚠️ 本地 SLM 失败，降级到 DeepSeek")
+                    agent_result = native_weather_agent.run(user_message)
+               
                 print(f"✅ Agent 返回: {agent_result[:50]}...")
                 
-
                 # 把工具结果注入 system_prompt
                 system_str += f"\n\n【工具调用结果】\n{agent_result}\n请基于以上工具结果回答用户。"
 
