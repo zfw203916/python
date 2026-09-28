@@ -19,6 +19,8 @@ class StudentUser(Base):
     st_username = Column(String(50), unique=True, nullable=False)
     st_password = Column(String(255), nullable=False)  # 生产环境要加密
     created_at = Column(DateTime, default=datetime.now)
+    role = Column(String(20), default="viewer", nullable=False) # admin , teacher, viewer
+
 
 class Student(Base):
     """学生信息表"""

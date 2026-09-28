@@ -420,6 +420,9 @@
         }
 
         // ==================== 页面初始化 ====================
+        // 全局变量
+        let currentRole = "viewer";
+
         async function checkSession() {
             const response = await fetch('/api/student/auth/session');
             const data = await response.json();
@@ -428,6 +431,16 @@
                 document.getElementById('loginContainer').style.display = 'none';
                 document.getElementById('mainContainer').style.display = 'block';
                 document.getElementById('currentUser').textContent = data.username;
+               
+                // 记录角色
+                currentRole = data.role || "viewer";
+
+                // 按角色控制"添加"按钮
+                const addBtn = document.querySelector('button[onclick="showAddModal()"]');
+                if (addBtn) {
+                    addBtn.style.display = ["admin", "teacher"].includes(currentRole) ? "inline-block" : "none";
+                }
+
                 loadStudents();
             } else {
                 document.getElementById('loginContainer').style.display = 'flex';
@@ -513,8 +526,12 @@
                     <td>${escapeHtml(s.student_id)}</td>
                     <td>${s.age}</td>
                     <td class="action-buttons">
-                        <button class="btn btn-warning btn-sm" onclick="editStudent(${s.id})">编辑</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id})">删除</button>
+                        ${["admin","teacher"].includes(currentRole) 
+                            ? `<button class="btn btn-warning btn-sm" onclick="editStudent(${s.id})">编辑</button>` 
+                            : ''}
+                        ${currentRole === "admin" 
+                            ? `<button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id})">删除</button>` 
+                            : ''}
                     </td>
                 </tr>
             `).join('');

@@ -28,4 +28,4 @@ def init_db():
     """初始化表（只创建学生管理相关的表）"""
     # 创建表，手动表没创建时可以由这个创建。
     # Base.metadata.create_all(bind=engine)
-    logger.info("✅ 学生管理表初始化完成，手动表创建过")
+    #logger.info("✅ 学生管理表初始化完成，手动表创建过")

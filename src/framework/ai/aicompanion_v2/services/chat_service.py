@@ -1,7 +1,6 @@
 # src/framework/ai/aicompanion_v2/services/chat_service.py
 import os
 import sys
-from openai import OpenAI
 from datetime import datetime
 from typing import List, Dict
 import uuid
@@ -17,7 +16,8 @@ from .....shared.llm import APP_DEEPSEEK_MODEL, get_chat_client
 # 导入 Agent
 # from ...agent.weather.core.agent import smart_agent
 # ✅ 改成原生
-from ...agent.weather.core.agent_native import (native_weather_agent,local_slm_agent)
+from ...agent.weather.core.agent_native import native_weather_agent, local_slm_agent
+
 load_dotenv()
 # 指定 .env 文件路径（项目根目录）
 env_path = Path(__file__).parent.parent / ".env"
@@ -30,6 +30,7 @@ sys.path.insert(0, str(kb_path))
 # ============ 导入知识库服务 ============
 from src.framework.ai.knowledge_simple.services.document_service import DocumentService
 from src.framework.ai.knowledge_simple.database import KnowledgeChunk, KnowledgeDocument
+
 
 # ================================================
 class ChatService:
@@ -63,14 +64,30 @@ class ChatService:
             {rules}
             伴侣性格：
             - {nature}
+            # 能力说明
+            【你具备的能力】
+            你可以帮用户做以下事情：
+            1. 查询天气：用户问"北京天气"、"明天会下雨吗"
+            2. 查询日期时间：用户问"今天几号"、"现在几点"、"星期几"
+            3. 查询学生信息：用户问"查一下张三"、"学号001的学生是谁"
+            4. 更新学生信息：用户问"把张三的年龄改成12"、"把学号001改名为李四"
+            5. 删除学生：用户问"删除李四"、"移除学号005的学生"
+
+            当用户问"你有什么功能"、"你会什么"、"你能做什么"、"有哪些工具"等
+            关于你能力的问题时，请用伴侣的语气如实介绍以上能力，
+            不要编造不存在的功能（如"锅碗瓢盆"之类开玩笑的话）。
+
             【重要】当用户询问关于文档、书籍、故事等内容时，你必须基于【参考信息】中的内容来回答。
             如果【参考信息】中有相关内容，请直接引用并回答。
             如果【参考信息】中没有相关内容，请礼貌地告诉用户。
 
             你必须严格遵守上述规则来回复用户。
+            
         """
 
-    def _get_or_create_session(self, db: Session, session_id: str, nick_name: str = None, nature: str = None) -> SessionModel:
+    def _get_or_create_session(
+        self, db: Session, session_id: str, nick_name: str = None, nature: str = None
+    ) -> SessionModel:
         """获取或创建会话"""
         session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
         if not session:
@@ -107,7 +124,14 @@ class ChatService:
                 db.refresh(session)
         return session
 
-    def chat(self, session_id: str, user_message: str, stream: bool = True, nick_name: str = None, nature: str = None):
+    def chat(
+        self,
+        session_id: str,
+        user_message: str,
+        stream: bool = True,
+        nick_name: str = None,
+        nature: str = None,
+    ):
         """处理聊天请求 - 集成 Agent 工具"""
         if not self.client:
             raise ValueError("OpenAI client not initialized")
@@ -129,7 +153,7 @@ class ChatService:
 
             # ===== 3. 🟢 让 Agent 判断是否需要工具 =====
             agent_result = None
-            # use_agent = smart_agent.should_use_tools(user_message) 
+            # use_agent = smart_agent.should_use_tools(user_message)
             # use_agent = native_weather_agent.should_use_tools(user_message) # 这里用的还是deepseek
 
             # 意图判断统一用 DeepSeek 版（关键词，快）
@@ -150,18 +174,26 @@ class ChatService:
 
                 # 本地失败降级
                 if (
-                    not agent_result 
+                    not agent_result
                     or "工具执行失败" in agent_result
-                    or "无需调用工具" in agent_result # 识别出"本地 SLM 没干活"，直接降级到 DeepSeek 重跑。
-                    or len(agent_result) < 5 # 用"长度"作为最粗糙但最有效的"是否有效结果"过滤器。任何短于 5 字符的返回值，100% 是废文本，直接降级。
+                    or "无需调用工具"
+                    in agent_result  # 识别出"本地 SLM 没干活"，直接降级到 DeepSeek 重跑。
+                    or len(agent_result)
+                    < 5  # 用"长度"作为最粗糙但最有效的"是否有效结果"过滤器。任何短于 5 字符的返回值，100% 是废文本，直接降级。
                 ):
                     print("⚠️ 本地 SLM 失败，降级到 DeepSeek")
                     agent_result = native_weather_agent.run(user_message)
-               
+
                 print(f"✅ Agent 返回: {agent_result[:50]}...")
-                
+
                 # 把工具结果注入 system_prompt
-                system_str += f"\n\n【工具调用结果】\n{agent_result}\n请基于以上工具结果回答用户。"
+                system_str += (
+                    f"\n\n【工具调用结果】\n{agent_result}\n"
+                    f"【重要】\n"
+                    f"- 如果结果以 ✅ 开头，用伴侣语气确认成功\n"
+                    f"- 如果结果以 ❌ 开头，必须如实告知用户失败原因，**绝对不要编造成功**\n"
+                    f"- 不要复述工具原文，用自己的话表达\n"
+                )
 
             # ===== 4. 保存用户消息 =====
             messages = session.messages or []
@@ -223,14 +255,16 @@ class ChatService:
                     # 按 content 去重，保留最高相似度
                     seen_contents = set()
                     unique_messages = []
-        
+
                     for msg in similar_messages:
-                        content_key = msg['content'].strip()
+                        content_key = msg["content"].strip()
                         if content_key not in seen_contents:
                             seen_contents.add(content_key)
                             unique_messages.append(msg)
-                    print(f"🔍 去重前: {len(similar_messages)} 条，去重后: {len(unique_messages)} 条")
-                    similar_messages = unique_messages 
+                    print(
+                        f"🔍 去重前: {len(similar_messages)} 条，去重后: {len(unique_messages)} 条"
+                    )
+                    similar_messages = unique_messages
 
                 if similar_messages:
                     print(f"🔍 第一条: {similar_messages[0]['content'][:50]}...")
@@ -431,7 +465,6 @@ class ChatService:
             return str(session.id)
         finally:
             db.close()
-
 
     def get_stats(self):
         # 知识做调试用

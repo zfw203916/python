@@ -11,6 +11,7 @@ curl -b cookies.txt -X POST http://127.0.0.1:8000/api/student/ai/query \
   -H "Content-Type: application/json" \
   -d '{"query":"查一下张三"}'
 
+  # 3、 AI调用 ，处理学生的方法。
 """
 
 import os
@@ -25,11 +26,13 @@ from .....shared.llm import get_chat_client, APP_DEEPSEEK_MODEL
 USE_LOCAL_SLM = os.environ.get("USE_LOCAL_SLM", "true").lower() == "true"
 LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "qwen3.5:4b")
 local_client = Client() if USE_LOCAL_SLM else None
+
+
 class StudentAIService:
     """学生管理 AI 服务"""
 
     def __init__(self):
-        self.client = local_client 
+        self.client = local_client
         self.model = LOCAL_MODEL
         # 加：DeepSeek 兜底客户端
         self.fallback_client = get_chat_client()
@@ -40,7 +43,7 @@ class StudentAIService:
         """检查本地 SLM 是否真的可用"""
         if not self.client:
             return False
-        try: 
+        try:
             self.client.list()
             print("✅ Ollama 可用，使用本地 SLM")
             return True
@@ -48,22 +51,22 @@ class StudentAIService:
             print(f"⚠️ Ollama 不可用: {e}")
             return False
 
-
     # ========== 1. 意图解析 ==========
-    def parse_intent(self,user_input: str) ->Dict:
+    def parse_intent(self, user_input: str) -> Dict:
         """
-            把自然语言解析成结构化意图
-            返回：{"action": "search|stats|update|delete|unknown", ...}
+        把自然语言解析成结构化意图
+        返回：{"action": "search|stats|update|delete|unknown", ...}
         """
 
-        prompt = f"""你是学生管理系统的意图解析器。
+        prompt =f"""你是学生管理系统的意图解析器。
             用户说：{user_input}
 
             请提取意图和参数，返回 JSON 格式，只返回 JSON，不要任何其他文字。
 
             支持的意图：
             - search：查询学生（参数：name, student_id, age）
-            - stats：统计（参数：无 或 class_name）
+            - add：添加学生（参数：name, student_id, age 都必须）
+            - stats：统计（参数：无）
             - update：更新学生（参数：student_id 必须，name, age 可选）
             - delete：删除学生（参数：student_id 或 name）
             - unknown：无法识别
@@ -72,16 +75,17 @@ class StudentAIService:
             示例2：输入"三年级有多少人" → {{"action":"stats"}}
             示例3：输入"把学号1001的年龄改成12" → {{"action":"update","student_id":"1001","age":12}}
             示例4：输入"删除李四" → {{"action":"delete","name":"李四"}}
+            示例5：输入"添加学生张三，学号008，年龄15" → {{"action":"add","name":"张三","student_id":"008","age":15}}
 
             现在请解析：{user_input}
         """
         try:
-            #本地 SLM 和 DeepSeek 两条调用链分开
+            # 本地 SLM 和 DeepSeek 两条调用链分开
             if self.local_available:
                 response = self.client.chat(
-                    model = self.model,
-                    messages = [{"role":"user","content":prompt}],
-                    format= "json"
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    format="json",
                 )
                 content = response.message.content.strip()
             else:
@@ -92,9 +96,9 @@ class StudentAIService:
                 )
                 content = response.choices[0].message.content.strip()
             return json.loads(content)
-        
+
         except Exception as e:
-            print(f"❌ 意图解析失败: {e}")    
+            print(f"❌ 意图解析失败: {e}")
             # 本地失败时，兜底重试一次 DeepSeek
             if self.local_available:
                 try:
@@ -110,28 +114,72 @@ class StudentAIService:
             return {"action": "unknown"}
 
     # ========== 2. 执行意图 ==========
-    def execute_intent(self,intent: Dict, db: Session) -> Dict:
+    def execute_intent(self, intent: Dict, db: Session, user_role: str = "viewer") -> Dict:
         """
-            根据意图执行数据库操作
-            返回：{"success": bool, "data": [...], "message": str}
+        根据意图执行数据库操作
+        返回：{"success": bool, "data": [...], "message": str}
         """
-        action = intent.get("action","unknown")
+        action = intent.get("action", "unknown")
+        # 权限检查
+        """
+            add 不是路由，是 execute_intent 内部的一个 elif 分支。
+            前端只调 /api/student/ai/query，action 由 SLM 从用户话里解析出来，传给 execute_intent 自己分发。
+        """
+        if action == "add" and user_role != "admin":
+            return {"success": False, "message":"权限不足：只有管理员才能增加学生"}
+        
+        if action == "update" and user_role not in ("admin", "teacher"):
+            return {"success": False, "message":"权限不足：只有管理员或老师能更新学生"}
+
+        if action == "delete" and user_role != "admin":
+            return {"success": False, "message":"权限不足：只有管理员才能删除学生"} 
+
         try:
             if action == "search":
                 return self._do_search(intent, db)
+            elif action == "add":
+                return self._do_add(intent, db)    
             elif action == "stats":
-                return self._do_stats(intent,db)
+                return self._do_stats(intent, db)
             elif action == "update":
-                return self._do_update(intent,db)
+                return self._do_update(intent, db)
             elif action == "delete":
-                return self._do_delete(intent,db)
+                return self._do_delete(intent, db)
             else:
                 return {"success": False, "message": "无法理解你的意思"}
         except Exception as e:
             return {"success": False, "message": f"执行失败: {e}"}
 
+    def _do_add(self, intent: Dict, db: Session) ->Dict:
+        """AI添加学生"""
+        name = intent.get("name")
+        student_id = intent.get("student_id")
+        age = intent.get("age")
 
-    def _do_search(self,intent: Dict, db: Session) -> Dict:
+        if not name or not student_id or not age:
+            return {"success": False, "message":"添加学生需要提供：姓名、学号、年龄"}
+        # 检查学号是否已存在
+        existing = db.query(Student).filter(Student.student_id == student_id).first()
+        if existing:
+            return {"success": False, "message": f"学号 {student_id} 已存在"}
+        try:
+            add_students = Student(
+                student_name = name,
+                student_id = student_id,
+                student_age = age
+            )
+            db.add(add_students)
+            db.commit()
+            db.flush()
+            return {"success": True, "message": f"已添加学生：{name}（学号 {student_id}，年龄 {age}）"}
+        except Exception as e:
+            db.rollback()
+            return {"success": False, "message": f"添加失败: {e}"}
+        finally:
+            db.close()
+
+
+    def _do_search(self, intent: Dict, db: Session) -> Dict:
         q = db.query(Student)
         if intent.get("name"):
             q = q.filter(Student.student_name.ilike(f"%{intent['name']}%"))
@@ -142,19 +190,19 @@ class StudentAIService:
 
         students = q.all()
         data = [
-            {"id":s.id,
-             "name":s.student_name,
-             "student_id":s.student_id,
-             "age":s.student_age
-            } 
+            {
+                "id": s.id,
+                "name": s.student_name,
+                "student_id": s.student_id,
+                "age": s.student_age,
+            }
             for s in students
         ]
-        return {"success": True, "data":data, "count": len(data)}
-
+        return {"success": True, "data": data, "count": len(data)}
 
     def _do_stats(self, intent: Dict, db: Session) -> Dict:
         total = db.query(Student).count()
-        return {"success": True, "data":{"total":total}}
+        return {"success": True, "data": {"total": total}}
 
     def _do_update(self, intent: Dict, db: Session) -> Dict:
         student_id = intent.get("student_id")
@@ -163,13 +211,23 @@ class StudentAIService:
         student = db.query(Student).filter(Student.student_id == student_id).first()
         if not student:
             return {"success": False, "message": f"学号 {student_id} 不存在"}
-        if intent.get("name"):
+        
+        # 记录实际修改
+        changes = []
+        if intent.get("name") and intent["name"] != student.student_name:
+            changes.append(f"姓名：{student.student_name} → {intent['name']}")
             student.student_name = intent["name"]
-        if intent.get("age"):
+        if intent.get("age") and intent["age"] != student.student_age:
+            changes.append(f"年龄：{student.student_age} → {intent['age']}")
             student.student_age = intent["age"]
+
+        # 没变化就返回提示
+        if not changes:
+            return {"success": False, "message": "没有需要修改的内容（可能字段未解析或值未变）"}
+        
         db.commit()
-        return {"success": True, "message": f"学号 {student_id} 已更新"}
-    
+        return {"success": True, "message": f"学号 {student_id} 已更新：" + "，".join(changes)}
+
     def _do_delete(self, intent: Dict, db: Session) -> Dict:
         q = db.query(Student)
         if intent.get("student_id"):
@@ -187,7 +245,6 @@ class StudentAIService:
         db.commit()
         return {"success": True, "message": f"已删除学生 {student.student_name}"}
 
-
     # ========== 3. 生成回复 ==========
     def generate_reply(self, user_input: str, result: Dict) -> str:
         """
@@ -195,7 +252,11 @@ class StudentAIService:
             数据量小 → SLM 生成；数据量大 → 模板
         """
         if not result.get("success"):
-            return result.get("message","操作失败")
+            return result.get("message", "操作失败")
+        # 如果 result 里已经有明确的 message（如 add/update/delete 成功），直接用
+        
+        if result.get("message"):
+            return result["message"]
 
         action = result.get("action", "")
         data = result.get("data")
@@ -204,11 +265,11 @@ class StudentAIService:
         if action == "stats":
             total = data.get("total", 0) if isinstance(data, dict) else 0
             return f"当前系统共有 {total} 名学生。"
-        
+
         # 数据量大 → 用模板
-        if isinstance(data, list) and len(data) > 5 :
+        if isinstance(data, list) and len(data) > 5:
             return f"共找到 {len(data)} 条记录，请查看下方列表。"
-        
+
         # 数据量小 → 让 SLM 组织语言
         prompt = f"""用户问：{user_input}
             系统查询结果：{json.dumps(result, ensure_ascii=False)}
@@ -221,7 +282,7 @@ class StudentAIService:
                 # —— 本地 SLM ——
                 response = self.client.chat(
                     model=self.model,
-                    messages=[{"role": "user", "content": prompt}],        
+                    messages=[{"role": "user", "content": prompt}],
                 )
                 return response.message.content.strip()
             else:
@@ -232,7 +293,7 @@ class StudentAIService:
                     messages=[{"role": "user", "content": prompt}],
                 )
                 return response.choices[0].message.content.strip()
-            
+
         except Exception as e:
             print(f"❌ 生成回复失败: {e}")
             # 本地失败时兜底重试

@@ -7,14 +7,11 @@ from ..database import get_db
 from ..models_db import Student
 from ..models import StudentCreate, StudentUpdate, StudentResponse, SuccessResponse
 
+# 导入权限依赖
+from .auth import require_login, require_role
+
+
 router = APIRouter(prefix="/api/student/students",tags=["student-students"])
-
-def require_login(request: Request):
-    """依赖：要求登录"""
-    if not request.session.get("logged_in"):
-        raise HTTPException(status_code=401, detail="未登录")
-    return request.session.get("username")
-
 
 """
     核心：装饰器 = 把普通函数变成 API 接口。
@@ -108,7 +105,7 @@ def get_student(
         ) 
     
 
-
+# ========== 新增：admin / teacher ==========
 @router.post(
     "", 
     response_model=dict,
@@ -119,7 +116,11 @@ def get_student(
         422: {"description": "参数验证失败"},
     },
 )
-def add_student(data: StudentCreate, username: Annotated[str, Depends(require_login)], db: Annotated[Session, Depends(get_db)]):
+def add_student(
+    data: StudentCreate, 
+    username: Annotated[str, Depends(require_role("admin"))], 
+    db: Annotated[Session, Depends(get_db)]
+):
     """添加学生"""
     # 检查学号是否已存在
     existing = db.query(Student).filter(Student.student_id == data.student_id).first()
@@ -147,10 +148,11 @@ def add_student(data: StudentCreate, username: Annotated[str, Depends(require_lo
         422: {"description": "参数验证失败"},
     },
 )
+
 def update_student(
     db_id: int,
-    data:StudentUpdate, 
-    username: Annotated[str, Depends(require_login)], 
+    data: StudentUpdate,
+    role: Annotated[str, Depends(require_role("admin","teacher"))],
     db: Annotated[Session, Depends(get_db)]
 ):
     """更新学生"""
@@ -181,7 +183,12 @@ def update_student(
         404: {"description": "学生不存在"},   # 改 400 → 404
     },
 )
-def delete_student(db_id: int, username: Annotated[str, Depends(require_login)], db: Annotated[Session, Depends(get_db)]):
+def delete_student(
+    db_id: int, 
+    # username: Annotated[str, Depends(require_login)], 
+    role: Annotated[str, Depends(require_role("admin"))],
+    db: Annotated[Session, Depends(get_db)]
+):
     """删除学生"""
     student = db.query(Student).filter(Student.id == db_id).first()
     if not student:

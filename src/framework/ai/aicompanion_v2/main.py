@@ -19,7 +19,7 @@ from ..knowledge_simple.routers.documents import router as documents_router
 from ..knowledge_simple.routers.search import router as search_router
 
 # ========== 导入 Agent（ ==========
-#from ..agent.weather.core.router import router as agent_router
+# from ..agent.weather.core.router import router as agent_router
 
 # ========= 导入学生管理系统 =========
 from ....app.clients.studentmanage_v2.routers import auth as student_auth
@@ -27,7 +27,7 @@ from ....app.clients.studentmanage_v2.routers import students as student_student
 from ....app.clients.studentmanage_v2.database import init_db as init_student_db
 
 # =======AI 介入接管学生系统 ===========
-from ....app.clients.studentmanage_v2.routers import students_ai 
+from ....app.clients.studentmanage_v2.routers import students_ai
 
 # 导入日志
 from .logging_config import setup_logging
@@ -104,7 +104,11 @@ if kb_static_dir.exists():
 
 # 学生管理前端
 student_templates_dir = (
-    Path(__file__).parent.parent.parent.parent / "app" / "clients" / "studentmanage_v2" / "templates"
+    Path(__file__).parent.parent.parent.parent
+    / "app"
+    / "clients"
+    / "studentmanage_v2"
+    / "templates"
 )
 if student_templates_dir.exists():
     app.mount(
