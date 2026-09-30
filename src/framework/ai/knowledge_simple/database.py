@@ -45,6 +45,7 @@ class KnowledgeChunk(Base):
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     embedding = Column(Vector(1024))  # 向量
+    # embedding = Column(Vector(768))
     created_at = Column(DateTime, default=datetime.now)
 
     # 关联文档

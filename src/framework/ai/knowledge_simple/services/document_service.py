@@ -4,7 +4,8 @@ import uuid
 import re
 from typing import List, Tuple, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, text, bindparam
+from pgvector.sqlalchemy import Vector
 from ..database import KnowledgeDocument, KnowledgeChunk
 from .embedding_service import EmbeddingService
 # 导入日志
@@ -110,7 +111,7 @@ class DocumentService:
             # if self.embedding_service:
             if self.use_embedding:
                 embedding = self.embedding_service.get_embedding(chunk_text)
-
+                print(f"📊 分块 {idx} 向量维度: {len(embedding) if embedding else 'None'}")   # ← 加这行
             chunk = KnowledgeChunk(
                 chunk_index=idx,
                 document_id=doc.id,
@@ -127,13 +128,14 @@ class DocumentService:
     def search_similar(
             self,db: Session, 
             query: str,top_k: int = 5,
-            threshold: float = 0.3
+            threshold: float = 0.5
     ) -> List[Tuple[KnowledgeChunk, float]]:
         """搜索相似文档块"""
         # 如果没有 embedding 或获取向量失败，使用文本搜索
         print("🔍 DocumentService.search_similar 被调用")
         print(f"   查询: {query[:50]}...")
         print(f"   top_k: {top_k}, threshold: {threshold}")
+       
         # threshold 是浮点数
         if isinstance(threshold, tuple):
             threshold = threshold[0]
@@ -145,9 +147,72 @@ class DocumentService:
             # 降级到文本搜索
             return self._search_by_text(db,query,top_k)
 
+        print(f"🔍 向量维度: {len(query_embedding)}")   # 打印维度
+        
         try:
             from sqlalchemy import text
             # 使用向量相似度搜索,总之，一句话：在数据库里计算每个分块和用户查询的相似度，按相似度排序，返回最相似的 N 个。
+            # sql = text("""
+            #     SELECT 
+            #         kc.id,
+            #         kc.document_id,
+            #         kc.chunk_index,
+            #         kc.content,
+            #         kc.created_at,
+            #         1 - (kc.embedding <=> CAST(:query_embedding as vector)) as similarity
+            #     FROM knowledge_chunks AS kc
+            #     WHERE kc.embedding IS NOT NULL
+            #     ORDER BY kc.embedding <=> CAST(:query_embedding as vector)
+            #     LIMIT :top_k
+            # """)
+            # sql = text("""
+            #     SELECT 
+            #         kc.id,
+            #         kc.document_id,
+            #         kc.chunk_index,
+            #         kc.content,
+            #         kc.created_at,
+            #         1 - (kc.embedding <=> :query_embedding) as similarity
+            #     FROM knowledge_chunks AS kc
+            #     WHERE kc.embedding IS NOT NULL
+            #     ORDER BY kc.embedding <=> :query_embedding
+            #     LIMIT :top_k
+            # """).bindparams(
+            #     bindparam("query_embedding", type_=Vector(1024))
+            # )
+            test_sql = text("SELECT COUNT(*) FROM knowledge_chunks")
+            print(f"表里: {db.execute(test_sql).scalar()} 行")
+
+            test_sql2 = text("SELECT COUNT(*) FROM knowledge_chunks WHERE embedding IS NOT NULL")
+            print(f"有向量: {db.execute(test_sql2).scalar()} 行")
+
+            test_sql3 = text("SELECT 1 FROM knowledge_chunks LIMIT 1")
+            print(f"直接查: {len(db.execute(test_sql3).fetchall())} 行")
+
+            print(f"🔍 准备执行 SQL, top_k={top_k*2}")
+            # 转成字符串
+            embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
+            test_sql = text("SELECT id, embedding <=> embedding as self_distance FROM knowledge_chunks")
+            result = db.execute(test_sql).fetchall()
+            print(f"🔍 自己到自己的距离: {result}")
+            test_sql = text("""
+                SELECT 
+                    id,
+                    embedding <=> cast(:query_embedding as vector) as distance
+                FROM knowledge_chunks
+            """)
+            result = db.execute(test_sql, {"query_embedding": embedding_str}).fetchall()
+            print(f"🔍 距离: {result}")
+
+
+
+            # result = db.execute(sql,{
+            #     "query_embedding":query_embedding, # mbedding_str  ← 字符串
+            #     "top_k":top_k*2
+            # })
+
+            embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
+
             sql = text("""
                 SELECT 
                     kc.id,
@@ -158,16 +223,26 @@ class DocumentService:
                     1 - (kc.embedding <=> cast(:query_embedding as vector)) as similarity
                 FROM knowledge_chunks AS kc
                 WHERE kc.embedding IS NOT NULL
-                ORDER BY kc.embedding <=> cast(:query_embedding as vector)
                 LIMIT :top_k
             """)
-            result = db.execute(sql,{
-                "query_embedding":query_embedding,
-                "top_k":top_k*2
+            # ORDER BY kc.embedding <=> cast(:query_embedding as vector) 问题出在这里。
+            
+
+            result = db.execute(sql, {
+                "query_embedding": embedding_str,
+                "top_k": top_k * 2
             })
+
+
+            print(f"🔍 SQL: {sql}")
+            print(f"🔍 参数: query_embedding 类型={type(query_embedding)}, 长度={len(query_embedding)}")
+            print(f"🔍 参数: top_k={top_k*2}")
+            rows = result.fetchall()
+            print(f"🔍 SQL 返回 {len(rows)} 行")
             results = []
-            for row in result:
+            for row in rows:
                 similarity = row[5]
+                print(f"📊 相似度: {similarity:.4f} | 阈值: {threshold} | 内容: {row[3][:30]}...")
                 if similarity < threshold:
                     continue
                 chunk = KnowledgeChunk(
@@ -184,6 +259,8 @@ class DocumentService:
 
         except Exception as e:
             print(f"向量搜索失败，降级到文本搜索: {e}")
+            import traceback
+            traceback.print_exc()
             return self._search_by_text(db, query, top_k)
 
 

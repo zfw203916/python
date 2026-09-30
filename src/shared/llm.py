@@ -23,6 +23,7 @@ APP_DEEPSEEK_API_KEY = os.environ.get("APP_DEEPSEEK_API_KEY")
 APP_DEEPSEEK_URL = os.environ.get("APP_DEEPSEEK_URL")
 APP_DEEPSEEK_MODEL = os.environ.get("APP_DEEPSEEK_MODEL")
 
+# === 向量 模型 =====
 EMBEDDING_API_KEY = os.environ.get("EMBEDDING_API_KEY")
 EMBEDDING_URL = os.environ.get("EMBEDDING_URL")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
@@ -64,6 +65,6 @@ def get_langchain_llm():
         model=APP_DEEPSEEK_MODEL,
         api_key=APP_DEEPSEEK_API_KEY,
         base_url=APP_DEEPSEEK_URL,
-        temperature=0.7,
+        temperature=0.5,
         streaming=True,
     )

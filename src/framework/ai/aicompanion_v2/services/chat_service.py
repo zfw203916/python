@@ -15,7 +15,7 @@ from .....shared.llm import APP_DEEPSEEK_MODEL, get_chat_client
 
 # 导入 Agent
 # from ...agent.weather.core.agent import smart_agent
-# ✅ 改成原生
+# 改成原生
 from ...agent.weather.core.agent_native import native_weather_agent, local_slm_agent
 
 load_dotenv()
@@ -131,6 +131,8 @@ class ChatService:
         stream: bool = True,
         nick_name: str = None,
         nature: str = None,
+        user_role: str = "viewer",
+        user_name: str = "",
     ):
         """处理聊天请求 - 集成 Agent 工具"""
         if not self.client:
@@ -165,12 +167,20 @@ class ChatService:
                 # agent_result = smart_agent.run(user_message)
                 # print(f"✅ Agent 返回: {agen  t_result[:50]}...")
                 # agent_result = native_weather_agent.run(user_message)
+
+                # 构造 user_context
+                user_context = {
+                    "user_name": user_name,
+                    "user_role": user_role,
+                }
+                    
+            
                 if local_slm_agent is not None:
-                    print("🟢 使用本地 SLM 跑工具")
-                    agent_result = local_slm_agent.run(user_message)
+                    print("使用本地 SLM 跑工具")
+                    agent_result = local_slm_agent.run(user_message, user_context=user_context)
                 else:
-                    print("🔵 使用 DeepSeek 跑工具")
-                    agent_result = native_weather_agent.run(user_message)
+                    print("使用 DeepSeek 跑工具")
+                    agent_result = native_weather_agent.run(user_message, user_context=user_context)
 
                 # 本地失败降级
                 if (

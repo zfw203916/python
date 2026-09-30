@@ -17,13 +17,30 @@ class VectorService:
     load_dotenv()  # 加载.env文件
 
     def __init__(self):
-        self.embedding_client = get_embedding_client()   # 全局单例
-        self.embedding_model = EMBEDDING_MODEL     
+        # ✅ 读开关
+        use_local = os.environ.get("USE_LOCAL_EMBEDDING", "false").lower() == "true"
+        if use_local:
+            # 本地 Ollama
+            self.embedding_api_key = os.environ.get("LOCAL_EMBEDDING_API_KEY", "ollama")
+            self.embedding_url = os.environ.get("LOCAL_EMBEDDING_URL")
+            self.embedding_model = os.environ.get("LOCAL_EMBEDDING_MODEL")
+        else:
+            # 云端
+            self.embedding_api_key = os.environ.get("EMBEDDING_API_KEY")
+            self.embedding_url = os.environ.get("EMBEDDING_URL")
+            self.embedding_model = os.environ.get("EMBEDDING_MODEL") 
 
         # RAG配置
         self.enable_rag = os.environ.get("ENABLE_RAG", "true").lower() == "true"
         self.rag_top_k = int(os.environ.get("RAG_TOP_K", "5"))
-        self.rag_threshold = float(os.environ.get("RAG_THRESHOLD", "0.5"))
+        self.rag_threshold = float(os.environ.get("RAG_THRESHOLD", "0.4"))
+        if self.embedding_api_key:
+            self.embedding_client = OpenAI(
+                api_key = self.embedding_api_key,
+                base_url = self.embedding_url,
+            )
+        else:
+            self.embedding_client = None
 
     def get_embedding(self, text: str) -> list:
         """获取文本的向量表示"""

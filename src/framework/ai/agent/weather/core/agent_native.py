@@ -163,7 +163,7 @@ class NativeWeatherAgent:
             回复要简洁、准确，用中文回答。
         """
 
-    def _execute_tool(self, name: str, args: Dict) -> str:
+    def _execute_tool(self, name: str, args: Dict, user_context: dict = None) -> str:
         """执行工具"""
         # 先检查工具名是否在注册表里，防止 LLM 幻觉出不存在的工具。
         if name not in self.tools:
@@ -171,19 +171,24 @@ class NativeWeatherAgent:
 
         try:
             func = self.tools[name]
+            #  如果函数签名里有 user_context，自动注入
+            import inspect
+            sig = inspect.signature(func)
+            if "user_context" in sig.parameters:
+                args["user_context"] = user_context
             results = func(**args)
             return results
         except Exception as e:
             return f"工具执行失败: {e}"
 
-    def run(self, user_message: str, max_iterations: int = 5) -> str:
+    def run(self, user_message: str, max_iterations: int = 5, user_context: dict = None) -> str:
         """
         运行 Agent
 
         Args:
             user_message: 用户消息
             max_iterations: 最大循环次数（防止死循环）
-
+            user_context: 用户上下文 {user_name, user_role}
         Returns:
             AI 最终回复
         """
@@ -225,7 +230,7 @@ class NativeWeatherAgent:
                 # print(f"args的参数：：：：{args}")
                 print(f"   调用: {name}({args})")
                 # 执行
-                result = self._execute_tool(name, args)
+                result = self._execute_tool(name, args, user_context=user_context)
                 print(f"   结果: {result}")
 
                 # 回喂结果
@@ -322,24 +327,29 @@ class LocalSLMAgent:
             回复要简洁、准确，用中文回答。
         """
 
-    def _execute_tool(self, name: str, args: Dict) -> str:
+    def _execute_tool(self, name: str, args: Dict, user_context: dict = None) -> str:
         """执行工具"""
         if name not in self.tools:
             return f"未知工具: {name}"
         try:
             func = self.tools[name]
+            # 如果函数签名里有 user_context，自动注入
+            import inspect
+            sig = inspect.signature(func)
+            if "user_context" in sig.parameters:
+                args["user_context"] = user_context
             return func(**args)
         except Exception as e:
             return f"工具执行失败: {e}"
 
-    def run(self, user_message: str, max_iterations: int = 3) -> str:
+    def run(self, user_message: str, max_iterations: int = 3, user_context: dict = None) -> str:
         """
         运行 Agent
 
         Args:
             user_message: 用户消息
             max_iterations: 最大循环次数（防止死循环）
-
+            user_context: 用户上下文 {user_name, user_role}
         Returns:
             AI 最终回复
         """
@@ -411,7 +421,7 @@ class LocalSLMAgent:
 
                 print(f"   调用: {name}({args})")
                 # ★ Ollama 的 arguments 可能已是 dict，不是字符串
-                result = self._execute_tool(name, args)
+                result = self._execute_tool(name, args, user_context=user_context)
                 print(f"   结果: {result}")
 
                 # 回喂结果

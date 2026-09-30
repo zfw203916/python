@@ -52,19 +52,28 @@ def get_student_info(name: str = "", student_id: str = "") -> str:
 def add_student(
         student_id: str = "",
         name: str = "",
-        age: int = 0
+        age: int = 0,
+        user_contest: dict = None,
 ):
+    """
+    增加学生信息。
+    当用户要求增加学生用。
+    必须提供 student_id ，name age。
+    Returns:
+        增加结果文本
+    """
     if not student_id and not name:
         return "❌ 请提供学号或姓名用于定位学生。"
     
 
 
-# 更新工具
+# 更新工具 
 def update_student(
     student_id: str = "", 
     name: str = "", 
     new_name: str = "", 
-    new_age: int = 0
+    new_age: int = 0,
+    user_context: dict = None,
 ) -> str:
     """
     更新学生信息。
@@ -80,6 +89,10 @@ def update_student(
     Returns:
         更新结果文本
     """
+    role = (user_context or {}).get("user_role", "viewer")
+    print(f"role角色信息:::::::::{role}")
+    if role not in ("admin", "teacher"):
+        return f"❌ 权限不足：只有管理员或老师能更新学生信息（当前角色：{role})"
     if not student_id and not name:
         return "❌ 请提供学号或姓名用于定位学生。"
 
@@ -118,6 +131,7 @@ def update_student(
 def delete_student(
     student_id: str = "",
     name: str = "",
+    user_context: dict = None,
 ) -> str:
     """
     删除学生。
@@ -130,6 +144,9 @@ def delete_student(
     Returns:
         删除结果文本
     """
+    role = (user_context or {}).get("user_role", "viewer")
+    if role != "admin":
+        return f"❌ 权限不足：只有管理员或老师能更新学生信息（当前角色：{role})"
     if not student_id and not name:
         return "❌ 请提供学号或姓名用于定位学生。"
 

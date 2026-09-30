@@ -17,14 +17,33 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """向量化服务 - 使用SLM模型"""
     def __init__(self):
+
+        self.use_local = os.environ.get("USE_LOCAL_EMBEDDING","false").lower() == "true"
+        if self.use_local:
+            # 使用本地 Ollama 配置
+            self.api_key =  os.environ.get("LOCAL_EMBEDDING_API_KEY", "ollama")
+            self.model = os.environ.get("LOCAL_EMBEDDING_MODEL")
+            self.base_url = os.environ.get("LOCAL_EMBEDDING_URL") 
+            logger.info(f"🖥️ 使用本地 Embedding 模型: {self.model}")
+        else:
+            # 3. 使用原有的云端配置
+            self.api_key = os.environ.get("EMBEDDING_API_KEY")
+            self.base_url = os.environ.get("EMBEDDING_URL")
+            self.model = os.environ.get("EMBEDDING_MODEL", "BAAI/bge-large-zh-v1.5")
+            logger.info(f"☁️ 使用云端 Embedding 模型: {self.model}")
         # 使用硅流的 embedding 接口,deepseek没有向量的模型。
-        self.client = get_embedding_client()
-        self.model = EMBEDDING_MODEL
-        self.enabled = self.client is not None
+        # 4. 统一初始化 OpenAI 客户端 (因为 Ollama 兼容 OpenAI 接口)
+        self.enabled = bool(self.api_key)
+        
         # 是否启用向量化（如果没配置则使用简单文本搜索）
         if self.enabled:
+            self.client = OpenAI(
+                api_key=self.api_key, 
+                base_url=self.base_url
+            )
             logger.info(f"✅ Embedding 服务已启用，模型: {self.model}")
         else:
+            self.client = None
             logger.info("⚠️ Embedding 未配置，将使用简单的文本搜索")
 
         # ← 加这两行：打印实例 id 和调用栈
