@@ -55,16 +55,19 @@ class KnowledgeChunk(Base):
 def init_db():
     """初始化知识库表"""
     with engine.connect() as conn:
-        # 创建 vector 扩展（如果不存在）
+        # 1. 创建扩展
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        # 为知识库分块创建向量索引，加速检索
+        conn.commit()
+        
+        # 2. 创建表
+        Base.metadata.create_all(bind=engine)
+        
+        # 3. 创建索引
         conn.execute(
             text(
-                "CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists=100)"
+                "CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding "
+                "ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops) "
+                "WITH (lists=100)"
             )
         )
         conn.commit()
-
-        # 创建表
-        Base.metadata.create_all(bind=engine)
-        logger.info("✅ 知识库表创建成功")

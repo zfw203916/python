@@ -40,13 +40,19 @@ class MessageModel(Base):
 def init_db():
     """初始化数据库，创建表和pgvector扩展"""
     with engine.connect() as conn:
+        # 1. 创建扩展
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-
-        # 新增：创建向量索引加速检索,直接sql
+        conn.commit()
+        
+        # 2. 创建表（先建表）
+        Base.metadata.create_all(bind=engine)
+        
+        # 3. 创建索引（后建索引）
         conn.execute(
             text(
-                "CREATE INDEX IF NOT EXISTS idx_ai_messages_embedding ON ai_messages USING ivfflat (embedding vector_cosine_ops) WITH (lists=100)"
+                "CREATE INDEX IF NOT EXISTS idx_ai_messages_embedding "
+                "ON ai_messages USING ivfflat (embedding vector_cosine_ops) "
+                "WITH (lists=100)"
             )
         )
         conn.commit()
-        Base.metadata.create_all(bind=engine)

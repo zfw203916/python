@@ -1,5 +1,6 @@
 # src/framework/ai/knowledge_simple/services/embedding_service.py
 import os
+import httpx 
 from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
@@ -24,7 +25,21 @@ class EmbeddingService:
             self.api_key =  os.environ.get("LOCAL_EMBEDDING_API_KEY", "ollama")
             self.model = os.environ.get("LOCAL_EMBEDDING_MODEL")
             self.base_url = os.environ.get("LOCAL_EMBEDDING_URL") 
+            # 临时加日志
+            logger.info(f"LOCAL_EMBEDDING_URL = {self.base_url}")
             logger.info(f"🖥️ 使用本地 Embedding 模型: {self.model}")
+            
+            # ✅ 在这里检查 Ollama 是否可用
+            try:
+                # 从 base_url 去掉 /v1，得到 Ollama 原生地址
+                ollama_host = self.base_url.replace("/v1", "")
+                response = httpx.get(f"{ollama_host}/api/tags", timeout=5)
+                if response.status_code == 200:
+                    logger.info("✅ Ollama 可用，使用本地 SLM")
+                else:
+                    logger.warning(f"⚠️ Ollama 不可用，状态码: {response.status_code}")
+            except Exception as e:
+                logger.warning(f"⚠️ Ollama 不可用: {e}")
         else:
             # 3. 使用原有的云端配置
             self.api_key = os.environ.get("EMBEDDING_API_KEY")
