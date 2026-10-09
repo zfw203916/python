@@ -48,7 +48,6 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://fastapi_user:fastapi_pass@postgres:5432/fastapi_db
-      #DATABASE_URL = postgresql://postgres:postgres@localhost:5432/ai_companion
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
       APP_ENV: development
@@ -60,6 +59,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      qdrant:                             
         condition: service_healthy
     volumes:
       - ./src:/app/src

@@ -5,9 +5,9 @@ import re
 from typing import List, Tuple, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func, text, bindparam
-from pgvector.sqlalchemy import Vector
 from ..database import KnowledgeDocument, KnowledgeChunk
 from .embedding_service import EmbeddingService
+from .qdrant_service import QdrantService
 # 导入日志
 import logging
 logger = logging.getLogger(__name__)
@@ -17,6 +17,7 @@ class DocumentService:
 
     def __init__(self):
         self.embedding_service = EmbeddingService()
+        self.qdrant = QdrantService()
         self.chunk_size = 500  # 每块字符数
         self.chunk_overlap = 50  # 重叠字符数
         self.use_embedding = self.embedding_service.enabled
@@ -84,7 +85,7 @@ class DocumentService:
             start = end - self.chunk_overlap if end < text_length else end
         return chunks
 
-
+    # ========== 3. 保存文档：PG 文本 + Qdrant 向量 ==========
     def save_document(
             self, 
             db: Session, 
@@ -102,168 +103,86 @@ class DocumentService:
             content=content[:10000] # 只保存前10000字符，避免过大
         )
         db.add(doc)
-        db.flush()
-        # 2. 分块
+        db.flush()  # 拿到 doc.id
+        # 2. 分块 + 生成向量
         chunks = self.chunk_text(content)
+        pg_chunks: List[KnowledgeChunk] = []
+        qdrant_points: List[dict] = []
         # 3. 为每块生成向量并保存
         for idx, chunk_text in enumerate(chunks):
+            chunk_id = uuid.uuid4() # ★ 提前生成 UUID，两边共用
             embedding = None
             # if self.embedding_service:
             if self.use_embedding:
                 embedding = self.embedding_service.get_embedding(chunk_text)
                 print(f"📊 分块 {idx} 向量维度: {len(embedding) if embedding else 'None'}")   # ← 加这行
-            chunk = KnowledgeChunk(
+          
+            pg_chunks.append(KnowledgeChunk(
+                id = chunk_id,
                 chunk_index=idx,
                 document_id=doc.id,
                 content=chunk_text,
-                embedding=embedding,           
-            )
-            db.add(chunk)
-        doc.chunk_count = len(chunks)
+            ))
+            if embedding:
+                qdrant_points.append({
+                    "chunk_id":str(chunk_id),
+                    "vector" : embedding,
+                    "payload": {
+                        "document_id": str(doc.id),
+                        "document_title": doc.title,
+                        "chunk_index" :idx,
+                        "content" : chunk_text,
+                    },
+                })
+        db.add_all(pg_chunks)
+        doc.chunk_count = len(pg_chunks)
         db.commit()
         db.refresh(doc)
-        print(f"✅ 文档已保存: {doc.title}, 共：{len(chunks)}个分块")
+        # 4) 批量写 Qdrant
+        if qdrant_points:
+            try:
+                n = self.qdrant.upsert_chunks(qdrant_points)
+                logger.info(f"✅ '{doc.title}':PG{len(pg_chunks)}块 / Qdrant {n} 向量")
+            except Exception as e:
+                logger.info(f" Qdrant 写入失败: {e}")
         return doc
 
+    # ========== 4. 搜索：改走 Qdrant ==========
     def search_similar(
-            self,db: Session, 
-            query: str,top_k: int = 5,
+            self,
+            db: Session, 
+            query: str,
+            top_k: int = 5,
             threshold: float = 0.5
     ) -> List[Tuple[KnowledgeChunk, float]]:
         """搜索相似文档块"""
-        # 如果没有 embedding 或获取向量失败，使用文本搜索
-        print("🔍 DocumentService.search_similar 被调用")
-        print(f"   查询: {query[:50]}...")
-        print(f"   top_k: {top_k}, threshold: {threshold}")
-       
-        # threshold 是浮点数
-        if isinstance(threshold, tuple):
-            threshold = threshold[0]
-        threshold = float(threshold)
-        query_embedding = None
-        if self.use_embedding:
-            query_embedding = self.embedding_service.get_embedding_safe(query)
-        if not query_embedding:
-            # 降级到文本搜索
-            return self._search_by_text(db,query,top_k)
-
-        print(f"🔍 向量维度: {len(query_embedding)}")   # 打印维度
-        
-        try:
-            from sqlalchemy import text
-            # 使用向量相似度搜索,总之，一句话：在数据库里计算每个分块和用户查询的相似度，按相似度排序，返回最相似的 N 个。
-            # sql = text("""
-            #     SELECT 
-            #         kc.id,
-            #         kc.document_id,
-            #         kc.chunk_index,
-            #         kc.content,
-            #         kc.created_at,
-            #         1 - (kc.embedding <=> CAST(:query_embedding as vector)) as similarity
-            #     FROM knowledge_chunks AS kc
-            #     WHERE kc.embedding IS NOT NULL
-            #     ORDER BY kc.embedding <=> CAST(:query_embedding as vector)
-            #     LIMIT :top_k
-            # """)
-            # sql = text("""
-            #     SELECT 
-            #         kc.id,
-            #         kc.document_id,
-            #         kc.chunk_index,
-            #         kc.content,
-            #         kc.created_at,
-            #         1 - (kc.embedding <=> :query_embedding) as similarity
-            #     FROM knowledge_chunks AS kc
-            #     WHERE kc.embedding IS NOT NULL
-            #     ORDER BY kc.embedding <=> :query_embedding
-            #     LIMIT :top_k
-            # """).bindparams(
-            #     bindparam("query_embedding", type_=Vector(1024))
-            # )
-            test_sql = text("SELECT COUNT(*) FROM knowledge_chunks")
-            print(f"表里: {db.execute(test_sql).scalar()} 行")
-
-            test_sql2 = text("SELECT COUNT(*) FROM knowledge_chunks WHERE embedding IS NOT NULL")
-            print(f"有向量: {db.execute(test_sql2).scalar()} 行")
-
-            test_sql3 = text("SELECT 1 FROM knowledge_chunks LIMIT 1")
-            print(f"直接查: {len(db.execute(test_sql3).fetchall())} 行")
-
-            print(f"🔍 准备执行 SQL, top_k={top_k*2}")
-            # 转成字符串
-            embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
-            test_sql = text("SELECT id, embedding <=> embedding as self_distance FROM knowledge_chunks")
-            result = db.execute(test_sql).fetchall()
-            print(f"🔍 自己到自己的距离: {result}")
-            test_sql = text("""
-                SELECT 
-                    id,
-                    embedding <=> cast(:query_embedding as vector) as distance
-                FROM knowledge_chunks
-            """)
-            result = db.execute(test_sql, {"query_embedding": embedding_str}).fetchall()
-            print(f"🔍 距离: {result}")
-
-
-
-            # result = db.execute(sql,{
-            #     "query_embedding":query_embedding, # mbedding_str  ← 字符串
-            #     "top_k":top_k*2
-            # })
-
-            embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
-
-            sql = text("""
-                SELECT 
-                    kc.id,
-                    kc.document_id,
-                    kc.chunk_index,
-                    kc.content,
-                    kc.created_at,
-                    1 - (kc.embedding <=> cast(:query_embedding as vector)) as similarity
-                FROM knowledge_chunks AS kc
-                WHERE kc.embedding IS NOT NULL
-                LIMIT :top_k
-            """)
-            # ORDER BY kc.embedding <=> cast(:query_embedding as vector) 问题出在这里。
-            
-
-            result = db.execute(sql, {
-                "query_embedding": embedding_str,
-                "top_k": top_k * 2
-            })
-
-
-            print(f"🔍 SQL: {sql}")
-            print(f"🔍 参数: query_embedding 类型={type(query_embedding)}, 长度={len(query_embedding)}")
-            print(f"🔍 参数: top_k={top_k*2}")
-            rows = result.fetchall()
-            print(f"🔍 SQL 返回 {len(rows)} 行")
-            results = []
-            for row in rows:
-                similarity = row[5]
-                print(f"📊 相似度: {similarity:.4f} | 阈值: {threshold} | 内容: {row[3][:30]}...")
-                if similarity < threshold:
-                    continue
-                chunk = KnowledgeChunk(
-                    id=row[0],
-                    document_id=row[1],
-                    chunk_index=row[2],
-                    content=row[3],
-                    created_at=row[4]
-                )
-                results.append([chunk, similarity])
-            # 按相似度排序
-            results.sort(key=lambda x: x[1], reverse=True)
-            return results[:top_k]
-
-        except Exception as e:
-            print(f"向量搜索失败，降级到文本搜索: {e}")
-            import traceback
-            traceback.print_exc()
+        # 无 embedding 服务 → 降级到文本搜索
+        if not self.use_embedding:
             return self._search_by_text(db, query, top_k)
+        query_embedding = None
+        query_vector = self.embedding_service.get_embedding(query)
+        if not query_vector:
+            # 降级到文本搜索
+            return self._search_by_text(db, query, top_k)
+        
+        # Qdrant 检索
+        try:
+           hits = self.qdrant.search(query_vector, top_k=top_k, threshold=threshold)
+        except Exception as e:
+            print(f"向量搜索失败，降级到文本搜索: {e}") 
+            return self._search_by_text(db, query, top_k)
+        if not hits:
+            return []
+        
+        # 回 PG 拿完整 chunk（补 created_at 等）
+        ids = [h["chunk_id"] for h in hits]
+        chunks = db.query(KnowledgeChunk).filter(KnowledgeChunk.id.in_(ids)).all()
+        chunk_map = {str(c.id): c for c in chunks}
+        return [
+            (chunk_map[h["chunk_id"]], h["score"] )for h in hits if h["chunk_id"] in chunk_map
+        ]
 
-
+    # ========== 5. 文本降级搜索（保留原样） ==========
     def _search_by_text(
             self,
             db:Session,
@@ -298,3 +217,25 @@ class DocumentService:
             return db.query(KnowledgeDocument).filter(KnowledgeDocument.id == uuid.UUID(doc_id)).first()
         except ValueError:
             return None
+
+    # ========== 6. 删除文档：PG + Qdrant 一起删 ==========
+    def delete_document(self, db: Session, doc_id: str) -> bool:
+        try:
+            doc_uuid = uuid.UUID(doc_id)
+        except ValueError:
+            return False
+        doc = db.query(KnowledgeDocument).filter(
+            KnowledgeDocument.id == doc_uuid
+        ).first()
+        if not doc:
+            return False
+
+        try:
+            self.qdrant.delete_by_document(doc_id)
+        except Exception as e:
+            logger.exception(f"❌ Qdrant 删除失败: {e}")
+
+        db.delete(doc) # cascade 会删 chunks
+        db.commit()
+        return True
+

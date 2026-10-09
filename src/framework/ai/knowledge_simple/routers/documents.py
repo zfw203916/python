@@ -88,16 +88,14 @@ async def list_documents(db: Annotated[Session, Depends(get_db)]):
 
 @router.delete("/{doc_id}",responses={404:{"description":"文档不存在"},400:{"description": "无效的文档ID"}})
 async def delete_document(doc_id: str, db: Annotated[Session, Depends(get_db)]):
-    """删除文档"""
+    """删除文档（PG + Qdrant）"""
     try:
-        doc_uuid = uuid.UUID(doc_id)
+        uuid.UUID(doc_id)
     except ValueError:
         raise HTTPException(400, "无效的文档ID")
-    doc = db.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_uuid).first()
-    if not doc:
+    ok = document_service.delete_document(db, doc_id)
+    if not ok:
         raise HTTPException(404, "文档不存在")
     
     # 删除关联的分块（由于设置了 cascade，会自动删除）
-    db.delete(doc)
-    db.commit()
     return {"message":"删除成功", "id": doc_id}

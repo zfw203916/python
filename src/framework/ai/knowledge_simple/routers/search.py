@@ -6,10 +6,12 @@ from typing import List, Optional, Annotated
 from ..database import get_db,KnowledgeDocument, KnowledgeChunk
 from ..models import SearchRequest, SearchResult, ChunkResponse
 from ..services.document_service import DocumentService
+import logging
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/knowledge/search", tags=["knowledge-search"])
 document_service = DocumentService()
 
-@router.post("/", response_model=List[SearchRequest])
+@router.post("/", response_model=List[SearchResult])
 async def search_knowledge(
     request: SearchRequest,
     db: Annotated[Session,Depends(get_db)]
@@ -107,13 +109,13 @@ async def get_stats(db: Annotated[Session, Depends(get_db)]):
 
     # 检查是否有向量
     from sqlalchemy import text
-    has_vector = False
+    # 从 Qdrant 拿向量数
     try:
-        result = db.execute(text("SELECT 1 FROM knowledge_chunks WHERE embedding IS NOT NULL LIMIT 1"))
-        has_vector_count = result.scalar() > 0
-        has_vector = has_vector_count
-    except:
-        pass
+        qdrant_stats = document_service.qdrant.get_stats()
+        has_vector = qdrant_stats.get("points", 0) > 0
+    except Exception as e:
+        logger.exception(f"Qdrant stats 失败: {e}")
+        has_vector = False
 
     return {
         "document_count": doc_count,

@@ -15,7 +15,8 @@ client = OpenAI(
 OPENAI_MODEL = os.environ.get("SILI_Embedding_MODEL")
 print(f"client的内容：{client}")
 print(f"openai模型：{OPENAI_MODEL}")
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/ai_companion"
+# DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/ai_companion"
+DATABASE_URL = "postgresql://fastapi_user:fastapi_pass@postgres:5432/fastapi_db"
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 db = Session()

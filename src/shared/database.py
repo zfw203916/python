@@ -19,7 +19,8 @@ load_dotenv(env_path)
 
 # ========== 数据库 URL ==========
 DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ai_companion"
+    #"DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ai_companion"
+    "DATABASE_URL","postgresql://fastapi_user:fastapi_pass@postgres:5432/fastapi_db"
 )
 
 # ========== 全局唯一 engine ==========

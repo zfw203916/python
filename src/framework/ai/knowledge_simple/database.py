@@ -44,30 +44,35 @@ class KnowledgeChunk(Base):
     )
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
-    embedding = Column(Vector(1024))  # 向量
-    # embedding = Column(Vector(768))
+    # embedding = Column(Vector(1024))  # 向量. embedding 删掉，改存 Qdrant
     created_at = Column(DateTime, default=datetime.now)
 
     # 关联文档
     document = relationship("KnowledgeDocument", back_populates="chunks")
 
 
+# def init_db():
+#     """初始化知识库表"""
+#     with engine.connect() as conn:
+#         # 1. 创建扩展
+#         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+#         conn.commit()
+        
+#         # 2. 创建表
+#         Base.metadata.create_all(bind=engine)
+        
+#         # 3. 创建索引
+#         conn.execute(
+#             text(
+#                 "CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding "
+#                 "ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops) "
+#                 "WITH (lists=100)"
+#             )
+#         )
+#         conn.commit()
+
 def init_db():
-    """初始化知识库表"""
-    with engine.connect() as conn:
-        # 1. 创建扩展
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
+    """只建表，不再需要 pgvector 扩展和 ivfflat 索引"""
+    Base.metadata.create_all(bind=engine)
+    logger.info("✅ 知识库表初始化完成（向量迁移至 Qdrant）")
         
-        # 2. 创建表
-        Base.metadata.create_all(bind=engine)
-        
-        # 3. 创建索引
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding "
-                "ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops) "
-                "WITH (lists=100)"
-            )
-        )
-        conn.commit()

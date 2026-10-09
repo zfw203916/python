@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 # 导入日志
 import logging
+from typing import List, Optional
 import traceback
 # 导入模型
 from .....shared.llm import  get_embedding_client, EMBEDDING_MODEL
@@ -65,7 +66,7 @@ class EmbeddingService:
         # logger.info(f"实例 id={id(self)}")
         # logger.info("调用栈:\n%s", "".join(traceback.format_stack()))
 
-    def get_embedding(self, text: str) -> str:
+    def get_embedding(self, text: str) -> Optional[List[float]]:
         """获取文本向量"""
         if not self.enabled  or not self.client:
             return None
