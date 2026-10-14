@@ -19,7 +19,7 @@ services:
     networks:
       - fastapi_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fastapi_user"]
+      test: ["CMD-SHELL", "pg_isready -U fastapi_user -d fastapi_db"]
       interval: 5s
       timeout: 5s
       retries: 5

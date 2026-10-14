@@ -119,5 +119,3 @@ class QdrantService:
     def get_stats(self) -> Dict:
         info = self.client.get_collection(COLLECTION)
         return {"points": info.points_count, "status": str(info.status)}
-
-    

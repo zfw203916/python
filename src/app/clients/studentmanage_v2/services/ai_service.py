@@ -23,21 +23,23 @@ from ..models_db import Student
 from .....shared.llm import get_chat_client, APP_DEEPSEEK_MODEL
 
 # ========== 配置 ==========
-USE_LOCAL_SLM = os.environ.get("USE_LOCAL_SLM", "true").lower() == "true"
+USE_LOCAL_SLM = os.environ.get("USE_LOCAL_INTENT", "true").lower() == "true"
 LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "qwen3.5:4b")
-local_client = Client() if USE_LOCAL_SLM else None
+# local_client = Client() if USE_LOCAL_SLM else None
 
 
 class StudentAIService:
     """学生管理 AI 服务"""
 
     def __init__(self):
-        self.client = local_client
+        #self.client = local_client
+        self.client = Client() if USE_LOCAL_SLM else None
         self.model = LOCAL_MODEL
         # 加：DeepSeek 兜底客户端
         self.fallback_client = get_chat_client()
         self.fallback_model = APP_DEEPSEEK_MODEL
         self.local_available = self._check_local()
+  
 
     def _check_local(self) -> bool:
         """检查本地 SLM 是否真的可用"""

@@ -19,14 +19,6 @@ ai_service = StudentAIService()
 class AIQueryRequest(BaseModel):
     query: str
 
-
-# def require_login(request: Request):
-#     """依赖：要求登录"""
-#     if not request.session.get("logged_in"):
-#         raise HTTPException(status_code=401, detail="未登录")
-#     return request.session.get("username")
-
-
 @router.post("/query")  #没有这个就不能请求。
 def ai_query(
     data: AIQueryRequest,
