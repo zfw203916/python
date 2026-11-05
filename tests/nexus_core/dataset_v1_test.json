@@ -1,0 +1,12 @@
+[
+    {
+        "id":"T00510",
+        "original_id":"796739308558389249_2",
+        "source_dataset":"88801.xlsx",
+        "query":"我在你们平台输了钱，现在想申请退款",
+        "difficulty":"P1",
+        "expected_intent":"其它问题/空单",
+        "expected_slots":{},
+        "expected_action":"请用户详细描述问题，并提供会员账号和相关截图，客服为您核实处理。",
+        "source":"88801.xlsx|会话ID=796739308558389249|访客消息第2条"}
+]
