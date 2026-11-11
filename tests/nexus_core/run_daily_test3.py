@@ -5,6 +5,10 @@ import time
 from datetime import datetime
 import sys
 from openai import OpenAI
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 sys.stdout.reconfigure(line_buffering=True)
 API_URL="https://admin.pubuli.com/api/v1/workbench/reply-traces/try-compose"
 COOKIE_VALUE="nexus_refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uX3V1aWQiOiJmOWU3NGEzZS02MDQxLTQ3MDItYjM2Mi1iYzAxM2I0ZGVhNmEiLCJqdGkiOiJmOGZlMzFhMy04NjJmLTRmNGMtYTMwNi1mODA1NmNiMzQ1ZDUiLCJleHAiOjE3OTM4ODAwMzMuNDc4ODM3LCJzdWIiOiIyMjIzNDE1OTk0MjA5MDEzNzYwIn0.iECFErck4rrELxRNdRaUPVneMjjSlcY93AUq8U7kvEw"
@@ -16,7 +20,7 @@ HEADERS={
 }
 DATASET_FILE="dataset_v1_test.json"
 
-OPENAI_API_KEY = "sk-proj--EA"  
+OPENAI_API_KEY =  os.environ.get("OPENAI_API_KEY")
 OPENAI_MODEL   = "gpt-4o-mini"   # ★ gpt-4o-mini "gpt-4o" / "gpt-5.2"
 OPENAI_TIMEOUT = 30.0
 OPENAI_RETRIES = 2

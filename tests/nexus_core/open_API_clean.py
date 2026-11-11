@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 # pip install pandas openpyxl openai tqdm
 import os
+import sys
 import re
 import json
 import shutil
 import hashlib
 import unicodedata
 from collections import defaultdict
+from dotenv import load_dotenv
+
+load_dotenv()
 import pandas as pd
 from openpyxl import load_workbook
 from openai import OpenAI
@@ -14,8 +18,8 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ============ 配置 ============
-SRC            = "selete_data/49CP_(2026-08-09)_客服稽核报告_正式版.xlsx"
-SRC_SHEET      = "統計"
+SRC            = "selete_data/49CC (3).xlsx"
+SRC_SHEET      = "客服对话记录"
 
 TEMPLATE       = "selete_data/knowledge-import.xlsx"
 TPL_MAIN_SHEET = "知识条目"
@@ -95,6 +99,8 @@ def is_noise_question(q: str) -> bool:
     q = q.strip()
     if not q:
         return True
+    if len(q) <= 1:
+        return True
     if q in NOISE_EXACT:
         return True
     if q.startswith("http://") or q.startswith("https://"):
@@ -142,7 +148,7 @@ def build_intent(q: str, a: str, max_len: int = None):
 
 # ============ LLM 客户端 ============
 def get_client():
-    api_key = "sk-proj--EA"
+    api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         print("[WARN] 未设置 OPENAI_API_KEY，跳过所有 LLM 步骤（规范化 + 过滤）。")
         return None
@@ -157,8 +163,8 @@ def get_client():
 # ============ 问法规范化（并发 + 进度条） ============
 def normalize_questions(candidates, conversations, client):
     if client is None:
-        print("[WARN] 无 LLM 客户端，跳过问法规范化。")
-        return candidates
+        print("[ERROR] 无 LLM 客户端，无法进行问法规范化，程序退出。")
+        sys.exit(1)
 
     by_row = defaultdict(list)
     for i, c in enumerate(candidates):
@@ -214,8 +220,8 @@ index 必须与输入一致，results 数量必须等于输入数量。
                 results.append((i, norm, complete))
             return results
         except Exception as e:
-            # 失败时不中断，保留原文
-            return []
+            print(f"[ERROR] 问法规范化失败：{e}")
+            raise SystemExit(1)
 
     # 并发执行
     tasks = [(row, idxs) for row, idxs in by_row.items() if conversations.get(row)]
@@ -264,8 +270,8 @@ def call_llm_filter(candidates, client):
     if not candidates:
         return []
     if client is None:
-        print("[WARN] 无 LLM 客户端，跳过过滤，保留全部候选。")
-        return list(range(len(candidates)))
+        print("[ERROR] 无 LLM 客户端，无法进行 LLM 过滤，程序退出。")
+        sys.exit(1)
 
     def process_batch(batch_data, start_idx):
         payload = [{"index": k, "question": c["question"], "answer": c["answer"], "tag": c["tag"]} for k, c in enumerate(batch_data)]
@@ -278,6 +284,7 @@ def call_llm_filter(candidates, client):
 排除：
 - 纯广告、活动推送、欢迎语、纯链接、纯符号、纯表情符号、重复单个字的(如：哦哦哦等）
 - 空单、无实质问题（打招呼、测试、乱码、表情、纯账号、纯数字）
+- 语义不通、无逻辑、无法理解的问法（如"她叫我3小时过来问"这类毫无意义的句子）
 - 回答为空
 - 与业务无关的闲聊
 - 问法补全后仍无法独立理解（语义不明）
@@ -313,8 +320,8 @@ def call_llm_filter(candidates, client):
                     pass
             return valid
         except Exception as e:
-            # 失败时兜底全留
-            return [start_idx + k for k in range(len(batch_data))]
+            print(f"[ERROR] LLM 过滤失败：{e}")
+            raise SystemExit(1)
 
     # 切分批次
     batches = []
@@ -339,17 +346,38 @@ def main():
 
     tpl_raw_cols, tpl_norm_to_raw = load_template_columns(TEMPLATE, TPL_MAIN_SHEET)
     client = get_client()
+    if client is None:
+        print("[ERROR] 未配置有效的 LLM 客户端，程序退出。")
+        sys.exit(1)
 
     df = pd.read_excel(SRC, sheet_name=SRC_SHEET)
-    conversations = {int(r["编号"]): str(r["对话内容"]) for _, r in df.iterrows()}
+    if "对话内容" not in df.columns:
+        df = pd.read_excel(SRC, sheet_name=SRC_SHEET, header=1)
+
+    def row_id_of(r, idx):
+        v = r.get("编号")
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            v = r.get("会话ID")
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return idx + 1
+        try:
+            return int(v)
+        except Exception:
+            return str(v).strip()
+
+    conversations = {
+        row_id_of(r, idx): str(r.get("对话内容", ""))
+        for idx, r in df.iterrows()
+    }
 
     # 1) 提取
     candidates = []
-    for _, r in df.iterrows():
-        row_no = r["编号"]
-        visitor_id = str(r["访客ID"])
-        tag = str(r["对话标签"]) if pd.notna(r["对话标签"]) else "其他"
-        msgs = parse_messages(r["对话内容"])
+    for idx, r in df.iterrows():
+        row_no = row_id_of(r, idx)
+        visitor_id = str(r.get("访客ID", ""))
+        tag_val = r.get("对话标签")
+        tag = str(tag_val) if pd.notna(tag_val) else "其他"
+        msgs = parse_messages(r.get("对话内容", ""))
 
         for i, m in enumerate(msgs):
             if m["role"] != "访客": continue
@@ -455,9 +483,9 @@ def main():
     print(f"已写入模板副本：{OUT_XLSX}")
 
     # 8) 输出
-    out_df = pd.DataFrame(rows, columns=tpl_raw_cols)
-    out_df.to_csv(OUT_TSV, index=False, sep="\t", encoding="utf-8-sig")
-    print(f"已生成 TSV：{OUT_TSV}")
+    # out_df = pd.DataFrame(rows, columns=tpl_raw_cols)
+    # out_df.to_csv(OUT_TSV, index=False, sep="\t", encoding="utf-8-sig")
+    # print(f"已生成 TSV：{OUT_TSV}")
 
     # 9) 校验
     json_col = tpl_norm_to_raw.get("其他字段(JSON)")
